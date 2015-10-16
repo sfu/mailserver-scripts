@@ -1,0 +1,17 @@
+This is an automated message from the SFU Maillist system.
+
+Information for list "$listname"
+
+Description: $description
+
+Owner: owner-$listname@sfu.ca
+
+Subscribing:
+Subscribing to the list "$listname" via email is not allowed. 
+If you have an SFU computing id, please use the web interface to Maillist at https://maillist.sfu.ca in order to subscribe to this list. If you are not an SFU user, contact the owner of the list at owner-$listname@sfu.ca.
+
+Unsubscribing:
+SFU users should use the web interface to Maillist at https://maillist.sfu.ca in order to unsubscribe.
+If you are not an SFU user, send an email to $listname-request@sfu.ca with a subject of "unsubscribe". You will receive a confirmation email to which you must reply to complete the unsubscribe operation.
+
+General questions about the SFU Maillist system should be sent to  postmaster@sfu.ca.

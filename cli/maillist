@@ -1,0 +1,1265 @@
+#!/usr/local/bin/perl
+use Getopt::Std;
+use FileHandle;
+#use lib "/usr/LOCAL/lib/ml/cli";
+use lib "/usr/local/mail/maillist2/cli";
+use MLMP1Server;
+use MLCLIUtils;
+use MLHelp;
+use MLMaillist;
+use strict;
+
+use constant PROMPT => "maillist> ";
+use constant DEBUG  => 0;
+
+$main::TEST = 0;
+my $oneoffcmd = "";
+my @oneoffargv;
+$main::oneoff = 0;
+
+%main::CMDS = (
+  quit          => [ "quit", 0, 0, "user", 1 ],
+  help          => [ "help", 0, 1, "user", 1 ],
+  search        => [ "search", 0, 1, "user", 2 ],
+  info          => [ "info", 0, 1, "user", 1 ],
+  members       => [ "members", 0, 1, "user", 3 ],
+  listmembers   => [ "members", 0, 1, "user", 1 ],
+  menu          => [ "menu", 0, 0, "user", 3 ],
+  create        => [ "create", 0, 1, "user", 2 ],
+  deleteList    => [ "delete", 0, 1, "user", 3 ],
+  subscribe     => [ "subscribe", 0, 2, "user", 3 ],
+  join          => [ "join", 0, 1, "user", 1 ],
+  unsubscribe   => [ "unsubscribe", 0, 2, "user", 5 ],
+  resign        => [ "resign", 0, 1, "user", 1 ],
+  modify        => [ "modify", 0, 3, "user", 3 ],
+);
+
+%main::SEARCHATTRS = (member => 1,
+					  owner  => 1,
+					  name   => 1,
+					  manager=> 1,
+					  status => 1);
+
+%main::MODATTRS = (members  => "modMultiValued",
+				   managers => "modMultiValued",
+				   allow    => "modMultiValued",
+				   deny     => "modMultiValued",
+				   description     => "modSingleValued",
+				   newsgroup => "modSingleValued",
+				   welcome  => "modMultiLine",
+				   type     => "modType",
+				   restricted => "modRestricted",
+				   email_subscribe => "modEmailSubscribe",
+				   );
+
+getopts("s") or die "usage: maillist [command...]\n";
+if ($#ARGV>=0) {
+	$oneoffcmd = shift;
+	@oneoffargv = @ARGV;
+	$main::oneoff = 1;
+}
+
+$main::MLSERVICE = MLMP1Server->new();
+$main::MLSERVICE->authenticate($main::opt_s) || die "Service error:".$main::MLSERVICE->error();
+$main::CURRENT_SEMESTER = (&getCurrentAndNextSemester)[0];
+
+if ($oneoffcmd) {
+	do_oneoff( $oneoffcmd, @ARGV );
+} else {
+    help("startup");
+	print "\nYou are authenticated as an admin user.\n\n" if $main::MLSERVICE->isAdminUser();
+	&do_commands;
+}
+
+$main::MLSERVICE->logout();
+exit 0;	
+
+
+sub do_commands {
+  my ($cmd,@argv) = getValidCommand();
+  while ($cmd ne "quit") {
+    execute_command( $cmd, @argv );
+    ($cmd,@argv) = getValidCommand();
+  }
+}
+
+sub do_oneoff {
+  my ($cmd, @argv) = @_;
+  my $CMD = valid_command($cmd);
+  if ($CMD) {
+  	execute_command($CMD, @argv);
+  } else {
+  	print STDERR "Invalid command: $cmd\n\n";
+  }
+}
+
+sub getValidCommand {
+  my @cmd = promptAndGetReply(PROMPT);
+  my $goodcmd = "";
+  until ($goodcmd = valid_command($cmd[0])) {
+    print STDERR $cmd[0].": Unknown command.\n" if $cmd[0];
+    @cmd = promptAndGetReply(PROMPT);
+  }
+  $cmd[0]=$goodcmd;
+  return @cmd;
+}
+
+sub valid_command {
+  my ($cmd) = @_;
+  my $cmdlength = length $cmd;
+  my $cmdtabKey = "";
+  $cmd = lc $cmd;
+  foreach $cmdtabKey (keys %main::CMDS) {
+  	my $ptr = $main::CMDS{$cmdtabKey};
+  	my @cmdEntry = @$ptr;
+  	if ($cmdlength >= $cmdEntry[4] && $cmd eq substr($cmdtabKey,0,$cmdlength)) {
+  		return $cmdtabKey;
+  	}
+  }
+  return 0;
+}
+
+sub cmd_validate {
+  my ($cmd,@argv) = @_;
+  my $arg = "";
+  print "cmd_validate: $cmd\n" if DEBUG;
+  print "argc:".scalar(@argv)."\n" if DEBUG;
+  foreach $arg (@argv) {
+   print "$arg\n" if DEBUG;
+  }
+  my ($fn,$lo,$hi,$auth,$ln) = @{$main::CMDS{$cmd}};
+  print "fn:$fn\n" if DEBUG;
+  print "lo:$lo\n" if DEBUG;
+  print "hi:$hi\n" if DEBUG;
+  print "auth:$auth\n" if DEBUG;
+  print "ln:$ln\n" if DEBUG;
+  
+  if (scalar(@argv) < $lo) {
+    print STDERR "Missing arguments\n";
+    return 0;
+  }
+  if (scalar(@argv) > $hi) {
+    print STDERR "Too many arguments\n";
+    return 0;
+  }
+  return 0 if ($auth eq "admin" && !$main::MLSERVICE->isAdminUser());
+  return 1;
+}
+
+sub execute_command {
+  my ($cmd, @argv) = @_;
+  return unless cmd_validate($cmd,@argv);
+  print "Executing $cmd\n" if DEBUG;
+  eval "$cmd \@argv";
+}
+
+#
+# command subroutines
+#
+
+sub info {
+  my ($listname) = @_;
+  print "info $listname\n" if DEBUG;
+  my $maillist = getMaillist($listname);
+  return -1 if $maillist == -1;
+  $maillist->display();
+}
+
+sub create {
+  my ($type) = @_;
+  my $rc;
+  print "create:type:$type\n" if DEBUG;
+  $type = getType($type);
+  if ($type == -1) {
+    print "Aborting 'create' command.\n\n";
+    return -1;
+  }
+  if ($type eq 'courselist') { $rc = _createCourselist(); }
+  else { $rc = _createList($type); }
+  if ($rc == -1) {
+    print "Aborting 'create' command.\n\n";
+    return -1;
+  }
+  return 0;
+}
+
+sub _createCourselist {
+  print "In _createCourselist\n" if DEBUG;
+  unless ($main::MLSERVICE->canCreateCourselist()) {
+     print "You are not authorized to create courseslists.\n\n";
+     return -1;
+  }
+  my $section;
+  my $coursename = getCoursename();
+  return -1 if $coursename == -1;
+  my $result = $main::MLSERVICE->getSections($coursename);
+  unless ($result) {
+     print $main::MLSERVICE->error()."\n";
+     return -1;
+  }
+  my @sections = @$result;
+  my $msg = "Course $coursename has section";
+  $msg .= "s" if scalar @sections > 0;
+  $msg .= ": ";
+  print $msg; 
+  foreach $section (@sections) {
+     print "$section\n".(' ' x length $msg);
+  }
+  print "\n";
+  $section = getSection($coursename, @sections);
+  print "section is $section\n" if DEBUG;
+  unless ("y" eq confirm("Create courselist for ${coursename}_${section}?", "n", "Enter 'y' or 'yes' to create the list; 'n' or 'no' or 'quit' to abort the command.\n\n",0)) {
+     return -1;
+  }
+  my $len = length $coursename;
+  my $crsename = substr($coursename,0,$len-3);
+  my $crsenum  = substr($coursename,$len-3);
+  my $listname = $main::MLSERVICE->createCourselist($crsename.'_'.$crsenum.'_'.$section, $main::CURRENT_SEMESTER);
+  print $main::MLSERVICE->error()."\n" unless $listname;
+  print "List '$listname' added.\nPlease wait 15 minutes before trying to use the new list.\n\n" if $listname;
+}
+
+sub _createList {
+  my $type = shift;
+  my $reshelp = "\n\nYou can make the list a \"restricted sender\" list.\nThis means that only\nthe members and/or other specified individuals will be allowed\nto send to the list.\n\n";
+  my $allowhelp = "\n\A restricted list can be set up to allow members of the list to send to it.\If you do not allow members to send to it, only the owner/managers\nand individuals added to the \"allow\" list will be able to send to it.\n\n";
+  my $modhelp = "A list can be made a \"moderated\" list. If a list is moderated\nany messages sent from unauthorized users will be forwarded to the\nowner, who can then decide what to do with it.\nOtherwise, unauthorized senders will get an error message returned.";
+  
+  print "In _createList $type\n" if DEBUG;
+  my $newname = getNewListname();
+  return -1 if $newname == -1;
+  my $description = getDescription();
+  return -1 if $newname == -1;
+  my $restricted = getBoolean("Make it a restricted sender list?","n",$reshelp);
+  return -1 if $restricted == -1;
+  my $allow = getBoolean("Allow members to send?","n",$allowhelp);
+  return -1 if $allow == -1;
+  my $mod = getBoolean("Moderated list?","n",$modhelp);
+  return -1 if $allow == -1;
+  my $email = 0;
+  if ($type eq 'open') {
+     my $emailhelp = "If you allow subscribe via email, then users will be able to subscribe\nto the list by sending a \"subscribe\" message to ${newname}-request.\nYou should answer \"yes\" if you want non-SFU people to be able to subscribe.\n\n";
+     $email = getBoolean("Do you want to allow subscribe via email for $newname?","n",$emailhelp);
+     return -1 if $email == -1;
+  }
+  printNewListInfo($newname, $main::LOGIN, $type, $description, $restricted, $allow, $mod, $email);
+  unless ("y" eq confirm("Create $newname?", "n", "Enter 'y' or 'yes' to create the list; 'n' or 'no' or 'quit' to abort the command.\n\n",0)) {
+     return -1;
+  } 
+  my $reply = $main::MLSERVICE->create($newname,$type,$restricted,$description);
+  print $main::MLSERVICE->error()."\n" unless $reply;
+  print "List '$newname' added.\nYou will be sent an email when the list is activated.\n\n" if $reply eq 'ok';
+}
+
+sub deleteList {
+  my ($listname) = @_;
+  print "delete $listname\n" if DEBUG;
+  my $confirm = confirm("Are you SURE you want to delete $listname?","n","",0);
+  return -1 unless $confirm eq 'y';
+  print "confirm:$confirm\n" if DEBUG;
+  my $reply = $main::MLSERVICE->delete($listname);
+  print "reply:$reply\n" if DEBUG;
+  print $main::MLSERVICE->error()."\n" unless $reply;
+  print "$listname deleted." if $reply =~ /^ok/ ;
+}
+
+sub modify {
+  my ($listname,$attribute) = @_;
+  print "modify:listname:$listname\n" if DEBUG;
+  print "modify:attribute:$attribute\n" if DEBUG;
+  my $rc = 0;
+  my $modAttr;
+  my $maillist;
+  if (scalar(@_) == 3 && $attribute eq 'members') {
+     $rc = modMembersFromFile(@_);
+  } else {
+	  $maillist = getMaillist($listname);
+  print "modify:maillist:$maillist\n" if DEBUG;
+	  return -1 if $maillist == -1;
+  print "modify:maillist:".$maillist->name()."\n" if DEBUG;
+	  unless (($maillist->owner() eq $main::LOGIN) || $maillist->isManager($main::LOGIN) || $main::MLSERVICE->isAdminUser()) {
+		 print "Not owner, manager, or maillist administrator.\n";
+		 return 0;
+	  }
+  print "modify:2attribute:$attribute\n" if DEBUG;
+	  $modAttr = getModAttr($attribute);
+  print "modify:3attribute:$attribute\n" if DEBUG;
+	  return -1 if $modAttr == -1;
+	  print "modify ".$maillist->name()." $modAttr\n" if DEBUG;
+	  my $method = $main::MODATTRS{$modAttr};
+	  eval "\$rc = $method(\$maillist,\$modAttr)";
+  }
+  print "Modified $modAttr for list '".$maillist->name()."'.\n\n" if $rc>0;
+  print "No change to $modAttr for list '".$maillist->name()."'.\n\n" if $rc==0;
+}
+
+sub modMultiValued {
+  my ($maillist,$modAttr) = @_;
+  my $change = 0;
+  my $rc = 0;
+  my %METHODS = (members  => ["members","subscribe","unsubscribe"],
+  				 managers => ["managers","addManager","deleteManager"],
+  				 allow    => ["allowedSenders","addAllowed","deleteAllowed"],
+  				 deny     => ["deniedSenders","addDenied","deleteDenied"],
+  );
+
+  print "modMultiValued $modAttr\n" if DEBUG;
+  my $modAttrsRef = $METHODS{$modAttr};
+  my $getMethod = @$modAttrsRef[0];
+  my $addMethod = @$modAttrsRef[1];
+  my $delMethod = @$modAttrsRef[2];
+  my $membersRef;
+  my $member;
+  my %oldMembers = ();
+  my %newMembers = ();
+  my @additions = ();
+  
+  # get the existing values.
+  eval "\$membersRef = \$maillist->$getMethod()";
+  return -1 unless $membersRef;
+  my @old = @$membersRef;
+  @oldMembers{@old} = (1) x @$membersRef;
+  # edit the old values
+  my $filename = "/tmp/ml$$"."_".$main::counter++;
+  open TMPFILE,  ">$filename";
+  foreach $member (sort @$membersRef) {
+    print TMPFILE "$member\n";
+  }
+  close TMPFILE;
+  editfile($filename);
+  open TMPFILE, $filename;
+  my @new = ();
+  while (<TMPFILE>) {
+    chomp;
+    $newMembers{$_} = 1;
+  }
+  @new = keys %newMembers;
+  
+  return updateAddresses($maillist,\@new,\%oldMembers,$addMethod,$delMethod);
+#   # add new values; remove existing values from old hash
+#   foreach $member (@new) {
+#      if ($oldMembers{$member}) {
+#         delete $oldMembers{$member};
+#         next;
+#      }
+#      push @additions, $member;
+#   }
+#   if ((scalar(@additions) + scalar(keys %oldMembers))
+#         && (confirm("Are you sure you want to make this change?") eq 'y')) {
+#      foreach $member (@additions) {
+#         eval "\$rc = \$maillist->$addMethod(\$member)";
+#         $change += $rc=~/^ok/;
+#      }
+# 	  foreach $member (keys %oldMembers) {
+# 		 eval "\$rc = \$maillist->$delMethod(\$member)";
+# 		 $change += $rc=~/^ok/;
+# 	  }
+#   }
+#   return $change;
+}
+
+sub updateAddresses {
+  my ($maillist,$new,$old,$addMethod,$delMethod) = @_;
+  my @new = @$new;
+  my %oldMembers = %$old;
+  my $member;
+  my @additions = ();
+  my $rc;
+  my $change;
+
+  print "updateAddresses:maillist=$maillist\n" if DEBUG;
+  foreach $member (@new) {
+     if ($oldMembers{$member}) {
+        delete $oldMembers{$member};
+        next;
+     }
+     push @additions, $member;
+  }
+  if ((scalar(@additions) + scalar(keys %oldMembers))
+        && (confirm("Are you sure you want to make this change?") eq 'y')) {
+     foreach $member (@additions) {
+        next unless $member;
+        eval "\$rc = \$maillist->$addMethod(\$member)";
+        $change += $rc=~/^ok/;
+     }
+	  foreach $member (keys %oldMembers) {
+		 eval "\$rc = \$maillist->$delMethod(\$member)";
+		 $change += $rc=~/^ok/;
+	  }
+  }
+  return $change;
+}
+  
+sub modMembersFromFile {
+  my ($listname,$modAttr,$filename) = @_;
+  print "modMembersFromFile:$listname,$modAttr,$filename\n" if DEBUG;
+  my %oldMembers = ();
+  my @additions = ();
+  my $member;
+  my $reply = $main::MLSERVICE->search("name",$listname);
+  my $maillist = @{$reply}[0] if $reply;
+  return -1 unless $maillist;
+  #get the new members from the file
+  unless (open MEMBERS, $filename) {
+     print STDERR "Couldn't open file:$filename\n";
+     return -1;
+  }
+  print "modMembersFromFile:maillist=$maillist;filename=$filename\n" if DEBUG;
+  my @new = ();
+  while (<MEMBERS>) {
+     chomp;
+     push @new, fixValues($_);
+  }
+  print "New members:\n" if DEBUG;
+  foreach $member (@new) {
+    print "$member\n" if DEBUG;
+  }
+  # get the existing values.
+  my $membersRef = $maillist->members();
+  return -1 unless $membersRef;
+  my @old = @$membersRef;
+  @oldMembers{@old} = (1) x @$membersRef;
+  return updateAddresses($maillist,\@new,\%oldMembers,'subscribe','unsubscribe');
+}  
+
+sub modSingleValued {
+  my ($maillist,$modAttr) = @_;
+  my $change = 0;
+  my $rc = 0;
+  my %KEYS = (description  => "desc",
+              newsgroup    => "newsfeed",
+  );
+  my $change = 0;
+  print "modSingleValued $modAttr\n" if DEBUG;
+  my $key = $KEYS{$modAttr};
+  my $value = askfor("Enter new value for $modAttr", "\n\nEnter a new value for the specified attribute,\nor enter 'quit' to go back to the main prompt.\n\n",0);
+  return -1 if $value =~ /^(q|qu|qui|quit)$/;;
+  my $rc = $maillist->set($value,$key);
+  $change += $rc=~/^ok/;
+  return $change;
+}
+  
+sub modMultiLine {
+  my ($maillist,$modAttr) = @_;
+  my $change = 0;
+  my $rc = 0;
+  my %KEYS = (welcome => "welcomeMessage",
+  );
+
+  print "modMultiLine $modAttr\n" if DEBUG;
+  my $key = $KEYS{$modAttr};  
+  # get the existing value.
+  my $value = $maillist->get($key);
+  return -1 unless defined $value;
+  my $filename = "/tmp/ml$$"."_".$main::counter++;
+  open TMPFILE,  ">$filename";
+  print TMPFILE $value;
+  close TMPFILE;
+  editfile($filename);
+  open TMPFILE, $filename;
+  my $newValue = "";
+  while (<TMPFILE>) {
+    $newValue .= $_;
+  }
+  print "modMultiLine value:$value\n" if DEBUG;
+  print "modMultiLine newValue:$newValue\n" if DEBUG;
+  
+  return 0 if ($value eq $newValue);
+  # set the new value
+  if (confirm("Are you sure you want to make this change?") eq 'y') {
+  print "modMultiLine setting newValue:\"$newValue\" for key:\"$key\"\n" if DEBUG;
+     my $rc = $maillist->set($newValue,$key);
+     $change += $rc=~/^ok/;
+  }
+  return $change;
+}
+
+sub modRestricted {
+  my ($maillist,$modAttr) = @_;
+  my $allow = 1;
+  my $mod   = 0;
+  my $change = 0;
+  print "\nYou can make the list a \"restricted sender\" list. This means that only\n";
+  print "the members and/or other specified individuals will be allowed\nto send to the list.\n";
+  my $res = confirm("Make it a restricted sender list?",'y','',0) eq 'y' ? 'r' : 'u';
+  if ($res eq 'r') {
+     print "\nA restricted list can be set up to allow members of the list to send to it.\n";
+     print "If you do not allow members to send to it, only the owner/managers\n";
+     print "and individuals added to the \"allow\" list will be able to send to it.\n";
+     $allow = confirm("Allow members to send?",'y','',0) eq 'y' ? 'true' : 'false';
+     
+     print "\nA list can be made a \"moderated\" list. If a list is moderated\n";
+     print "any messages sent from unauthorized users will be forwarded to the\n";
+     print "owner, who can then decide what to do with it.\n";
+     print "Otherwise, unauthorized senders will get an error message returned.\n";
+     $mod = confirm("Moderated list?",'n','',0) eq 'y' ? 1 : 0;
+  }
+     
+  if (confirm("Are you sure you want to make this change?") eq 'y') {
+     if ($res eq 'r') {
+        my $rc = $maillist->set('RESTRICTED', 'externalSenderPolicyCodeString');
+        $change += $rc=~/^ok/;
+        my $rc = $maillist->set('RESTRICTED', 'localSenderPolicyCodeString');
+        $change += $rc=~/^ok/;
+         if ($change) {
+            $rc = $maillist->set($allow, 'localDefaultAllowedToSend');
+            $rc = $maillist->set($maillist->owner(), 'moderator') if $mod;
+         }
+     } else {
+        # external user are always restricted
+        my $rc = $maillist->set('RESTRICTED', 'externalSenderPolicyCodeString');
+        $change += $rc=~/^ok/;
+        my $rc = $maillist->set('UNRESTRICTED', 'localSenderPolicyCodeString');
+        $change += $rc=~/^ok/;
+     }
+  }
+  return $change;
+}
+     
+sub modEmailSubscribe {
+  my ($maillist,$modAttr) = @_;
+  my $change = 0;
+  if (!$maillist->isOpen()) {
+     print "Must be an open maillist to make that change.\n";
+     return 0;
+  }
+  return 0 if confirm("Turn on email subscribe feature?",'y','',0) ne 'y';
+  my $rc = $maillist->set('true', 'allowedToSubscribeByEmail');
+  $change += $rc=~/^ok/;
+  return $change
+}
+
+sub modType {
+  my ($maillist,$modAttr) = @_;
+  my $type = "";
+  my $change = 0;
+  my $rc = '';
+  
+  if ($maillist->isCourselist()) {
+     print "Cannot change the type of a courselist.\n";
+     return 0;
+  }
+  print "Enter the new type for the list. Valid types are:\n";
+  if ($maillist->isOpen()) {
+     print "closed     (Only the owner or manager can add members)\n";
+  } else {
+     print "open       (Anyone can join)\n";
+  }
+  
+  my @validTypes = qw(open closed);  
+  while (!grep($type, @validTypes)) {
+     $type = askforwithdefault( "List type", "", "\nEnter the new list type; or \"quit\" to return to the main prompt.\n\n", 0 );
+     return -1 if $type =~ /^(q|qu|qui|quit)$/;
+  }
+  if (($maillist->isOpen() && $type eq 'open')
+     || ($maillist->isClosed() && $type eq 'closed')) {
+     print STDERR "List is already type '$type'.\n";
+     return 0;
+  }
+  if ($type eq 'open') {
+    $rc = $maillist->setOpen();
+  } else {
+    $rc = $maillist->setClosed();
+  }
+  $change += $rc=~/^ok/;
+  return $change;
+}
+  
+
+use constant SRCHPROMPT => "Search for what?";
+use constant SRCHHELP   => "\nEnter a search argument, or <return> to search for the mailing\nlists of which you are a member, or \"quit\" to go back to the\nmain prompt.\n\nFor a detailed explanation of the search command, type\n\"help search\" at the main prompt.\n";
+use constant USERNAMEPROMPT => "Enter username:";
+use constant USERNAMEHELP   => "\nEnter a valid CCN account name or \"me\" for your own account.\n";
+use constant LISTNAMEPROMPT => "Enter list name:";
+use constant LISTNAMEHELP   => "\nEnter the name of an existing mailing list.\n";
+use constant STATUSPROMPT => "What status should I search for?";
+use constant STATUSHELP   => "\nEnter the status of the mailing lists that you want to display,\n<return> to see all \"defined\" lists, or \"quit\" to go back\nto the main prompt.\nThe status entered should be one of \"defined\", \"active\",\n\"inactive\".\n";
+
+sub search {
+  my @argv = @_;
+  my $searcharg = "";
+  my $attr = 'member';
+  my $filter = $main::LOGIN;
+  
+  if (scalar(@argv)==0) {
+    $searcharg = askforwithdefault( SRCHPROMPT, "member=".$main::LOGIN, SRCHHELP, 0 );
+    return 0 if (length($searcharg)==0 || $searcharg =~ /^(q|quit)$/);
+  } else {
+    $searcharg = $argv[0];
+  }
+  
+  if (index($searcharg,'=')<0) {
+  	if ($searcharg eq 'me') {
+  	  $attr = 'member';
+  	  $filter = $main::LOGIN;
+  	} elsif ($searcharg eq 'member') {
+  	  $attr = 'member';
+  	  $filter = askforwithdefault( USERNAMEPROMPT, $main::LOGIN, USERNAMEHELP, 0 );
+  	  return 0 if $filter =~ /^(q|quit)$/;
+  	} elsif ($searcharg eq 'owner') {
+  	  $attr = 'owner';
+  	  $filter = askforwithdefault( USERNAMEPROMPT, $main::LOGIN, USERNAMEHELP, 0 );
+  	  return 0 if $filter =~ /^(q|quit)$/;
+    } elsif	($searcharg eq 'manager') {
+  	  $attr = 'manager';
+  	  $filter = askforwithdefault( USERNAMEPROMPT, $main::LOGIN, USERNAMEHELP, 0 );
+  	  return 0 if $filter =~ /^(q|quit)$/;
+    } elsif ($searcharg eq 'name') {
+  	  $attr = 'name';
+  	  $filter = askforwithdefault( LISTNAMEPROMPT, "", LISTNAMEHELP, 0 );
+  	  return 0 if $filter =~ /^(q|quit)$/;
+    } elsif ($searcharg eq 'status') {
+  	  $attr = 'status';
+  	  $filter = askforwithdefault( STATUSPROMPT, "defined", STATUSHELP, 0 );
+  	  return 0 if $filter =~ /^(q|quit)$/;
+  	} else {
+  	  $attr = 'name';
+  	  $filter = $searcharg;
+  	}
+  } elsif ($searcharg =~ /^=/) {
+    print "Incorrect search command. Type 'help search' for proper usage.\n\n";
+    return -1;
+  } elsif ($searcharg =~ /=$/) {
+    print "Incorrect search command. Type 'help search' for proper usage.\n\n";
+    return -1;
+  } else {
+    ($attr,$filter) = split /=/,$searcharg;
+  }
+  
+  unless ($main::SEARCHATTRS{$attr}) {
+    print "Invalid search attribute: |$attr|\n";
+    return -1;
+  }
+  
+  $filter = $main::LOGIN if $filter eq "me";
+  print "Searching for $attr=$filter...\n";
+  my $reply = $main::MLSERVICE->search($attr,$filter);
+  print $main::MLSERVICE->error()."\n" unless $reply;
+  display_lists(@$reply) if $reply;
+  print "\n";
+  return 0;
+}
+
+sub listmembers {
+  members(@_);
+}
+
+sub members {
+  my ($listname) = @_;
+  my @members = ();
+  my $mem;
+  my $maillist = getMaillist($listname);
+  return -1 if $maillist == -1;
+  $listname = $maillist->name();
+  print "Got list for ".$listname."\n" if DEBUG;
+  if (($maillist->owner() eq $main::LOGIN) || $maillist->isManager($main::LOGIN) || $main::MLSERVICE->isAdminUser()) {
+    my $membersRef = $maillist->members();
+    print "membersRef:".$membersRef."\n" if DEBUG;
+    return -1 unless $membersRef;
+    if (scalar(@$membersRef)==0) {
+      push @members, "(No members added)";
+    } else {
+      push @members, "\nThe following members were added manually:";
+      push @members, @$membersRef;
+    }
+
+    if ($maillist->isCourselist()) {
+	  my $clmembersRef = $maillist->courseMembers();
+	  if ($clmembersRef) {
+		  if (scalar(@$clmembersRef)==0) {
+			  push @members, " ";
+		  } else {
+			  push @members, "The following are registered in the course:";
+			  push @members, @$clmembersRef;
+		  }
+	  }
+    }
+    mlPrintArray(@members);
+    print "\n\n";
+  } else {
+    print "You must be the owner or manager of \"$listname\" to list the members.\n";
+  }
+}   
+
+use constant MAIN_MENU => "\n\n       ***   MAILLIST MAIN MENU   ***\n
+1   Show maillists
+-------------------------------------------------
+2   Subscribe to a maillist
+3   Unsubscribe from a maillist
+-------------------------------------------------
+4   Create a new mailing list
+5   Modify maillists which you own
+-------------------------------------------------
+Q   Quit\n\n";
+
+sub menu {
+  MAINMENU:
+  for (;;) {
+	  system("clear");
+	  print MAIN_MENU;
+	  my $selection = askforwithdefault( "Enter your selection --->",'',
+									  "Enter the number of the menu item that you want to do\n", 0);
+	  SWITCH:
+	  for ($selection) {
+		 /^1$/ and do {
+						 if (menu_show() == -1) { system("clear"); return 0; }
+						 last;
+					   };
+		 /^2$/ and do {
+						 my $listname = askforwithdefault( "Type the name of the maillist",'','',0);
+						 next if $listname =~ /^(q|quit)$/;
+						 system("clear"); 
+						 subscribe($listname,'me');
+						 askforreturn();
+						 last;
+					   };
+		 /^3$/ and do {
+						 my $listname = askforwithdefault( "Type the name of the maillist",'','',0);
+						 next if $listname =~ /^(q|quit)$/;
+						 system("clear"); 
+						 unsubscribe($listname,'me');
+						 askforreturn();
+						 last;
+					   };
+		 /^4$/ and do {
+						 system("clear"); 
+						 create();
+						 askforreturn();
+						 last;
+					   };
+		 /^5$/ and do {
+						 if (menu_modify() == -1) { system("clear"); return 0; }
+						 last;
+					   };
+		 /^(q|quit)$/ and do {
+						 system("clear"); 
+						 return 0;
+					   };
+         print "No such menu item: $selection\n";
+         askforreturn();
+         next MAINMENU;
+	  }
+  }
+}
+
+use constant SHOW_MENU => "\n\n       ***   SHOW MAILLISTS   ***\n
+1   Show all maillists to which you belong
+2   Show all maillists which you own
+3   Show all maillists which you manage
+4   Show maillists by name
+5   Display detailed information about a maillist
+-------------------------------------------------
+R   Return to previous menu
+Q   Quit\n\n";
+
+sub menu_show {
+  SHOWMENU:
+  for (;;) {
+	  system("clear");
+	  print SHOW_MENU;
+	  my $selection = askforwithdefault( "Enter your selection --->",'',
+									  "Enter the number of the menu item that you want to do\n", 0);
+	  SWITCH:
+	  for ($selection) {
+		 /^1$/ and do {
+             system("clear"); 
+             my $oneoff = $main::oneoff;
+             $main::oneoff = 0;
+             search('member=me');
+             $main::oneoff = $oneoff;
+             askforreturn();
+		     last;
+		 };
+		 /^2$/ and do {
+             system("clear"); 
+             my $oneoff = $main::oneoff;
+             $main::oneoff = 0;
+             search('owner=me');
+             $main::oneoff = $oneoff;
+             askforreturn();
+		     last;
+		 };
+		 /^3$/ and do {
+             system("clear"); 
+             my $oneoff = $main::oneoff;
+             $main::oneoff = 0;
+             search('manager=me');
+             $main::oneoff = $oneoff;
+             askforreturn();
+		     last;
+		 };
+		 /^4$/ and do {
+			 my $listname = askforwithdefault( "Type part of a mail list name. For example, type 'cmpt' to get\n all the maillists with 'cmpt' as part of the name",'','',0);
+             system("clear"); 
+             my $oneoff = $main::oneoff;
+             $main::oneoff = 0;
+             search("name=*$listname*");
+             $main::oneoff = $oneoff;
+             askforreturn();
+		     last;
+		 };
+		 /^5$/ and do {
+			 my $listname = askforwithdefault( "Type the name of a maillist",'','',0);
+             system("clear"); 
+             my $oneoff = $main::oneoff;
+             $main::oneoff = 0;
+             info($listname);
+             $main::oneoff = $oneoff;
+             askforreturn();
+		     last;
+		 };
+		 /^(q|quit)$/ and do {
+             system("clear"); 
+             return -1;
+         };
+		 /^r$/ and do {
+             system("clear"); 
+             return 0;
+         };
+         print "No such menu item: $selection\n";
+         askforreturn();
+         next SHOWMENU;
+      }
+  }
+  return 0;
+}
+
+use constant MOD_MENU => "\n\n       ***   MODIFY MAILLISTS   ***\n
+1   Show all maillists which you own
+2   Show the members of a maillist
+3   Search maillists that you own/manage for a member
+-------------------------------------------------
+4   Add members to a maillist
+5   Delete members from a maillist
+-------------------------------------------------
+6   Delete a maillist which you own
+-------------------------------------------------
+R   Return to previous menu
+Q   Quit\n\n";
+
+sub menu_modify {
+  MODMENU:
+  for (;;) {
+	  system("clear");
+	  print MOD_MENU;
+	  my $selection = askforwithdefault( "Enter your selection --->",'',
+									  "Enter the number of the menu item that you want to do\n", 0);
+	  SWITCH:
+	  for ($selection) {
+		 /^1$/ and do {
+             system("clear"); 
+             my $oneoff = $main::oneoff;
+             $main::oneoff = 0;
+             search('owner=me');
+             $main::oneoff = $oneoff;
+             askforreturn();
+		     last;
+		 };
+		 /^2$/ and do {
+			 my $listname = askforwithdefault( "Type the name of a maillist that you own/manage",'','',0);
+             system("clear"); 
+             my $oneoff = $main::oneoff;
+             $main::oneoff = 0;
+             members($listname);
+             $main::oneoff = $oneoff;
+             askforreturn();
+		     last;
+		 };
+		 /^3$/ and do {
+			 my $member = askforwithdefault( "Type the member name. For example, type 'robert' to get\nall the maillists that you own/manage with 'robert' as a member",'','',0);
+             system("clear"); 
+             my $oneoff = $main::oneoff;
+             $main::oneoff = 0;
+             search("member=$member");
+             $main::oneoff = $oneoff;
+             askforreturn();
+		     last;
+		 };
+		 /^4$/ and do {
+			 my $listname = askforwithdefault( "Type the name of a maillist that you own/manage",'','',0);
+             my $reply = $main::MLSERVICE->search("name",$listname);
+             my $maillist = @{$reply}[0] if $reply;
+             unless ($maillist && (($maillist->owner() eq $main::LOGIN) || $maillist->isManager($main::LOGIN))) {
+                print "You are not owner or manager of $listname\n";
+                askforreturn();
+                last;
+             }
+             system("clear"); 
+             my $oneoff = $main::oneoff;
+             $main::oneoff = 0;
+             subscribe($listname);
+             $main::oneoff = $oneoff;
+             askforreturn();
+		     last;
+		 };
+		 /^5$/ and do {
+			 my $listname = askforwithdefault( "Type the name of a maillist that you own/manage",'','',0);
+             my $reply = $main::MLSERVICE->search("name",$listname);
+             my $maillist = @{$reply}[0] if $reply;
+             unless ($maillist && (($maillist->owner() eq $main::LOGIN) || $maillist->isManager($main::LOGIN))) {
+                print "You are not owner or manager of $listname\n";
+                askforreturn();
+                last;
+             }
+             system("clear"); 
+             my $oneoff = $main::oneoff;
+             $main::oneoff = 0;
+             unsubscribe($listname);
+             $main::oneoff = $oneoff;
+             askforreturn();
+		     last;
+		 };
+		 /^6$/ and do {
+			 my $listname = askforwithdefault( "Type the name of a maillist that you own",'','',0);
+             my $reply = $main::MLSERVICE->search("name",$listname);
+             my $maillist = @{$reply}[0] if $reply;
+             unless ($maillist && ($maillist->owner() eq $main::LOGIN)) {
+                print "You are not owner of $listname\n";
+                askforreturn();
+                last;
+             }
+             system("clear"); 
+             my $oneoff = $main::oneoff;
+             $main::oneoff = 0;
+             deleteList($listname);
+             $main::oneoff = $oneoff;
+             askforreturn();
+		     last;
+		 };
+		 /^(q|quit)$/ and do {
+             system("clear"); 
+             return -1;
+         };
+		 /^r$/ and do {
+             system("clear"); 
+             return 0;
+         };
+         print "No such menu item: $selection\n";
+         askforreturn();
+         next MODMENU;
+      }
+  }
+  return 0;
+}
+
+sub join {
+  subscribe(@_);
+}
+
+sub subscribe {
+  my ($listname,$address) = @_;
+  print "subscribe $listname $address\n" if DEBUG;
+  my $maillist = getMaillist($listname);
+  return -1 if $maillist == -1;
+  if ($address =~ /(.+)\@sfu.ca$/) {
+	 $address = $1;
+  }
+  if (($maillist->owner() eq $main::LOGIN) || $maillist->isManager($main::LOGIN) || $main::MLSERVICE->isAdminUser() ) {
+     authSubscribe($maillist,$address);
+  } else {
+	  $address = "" if $address eq $main::LOGIN;
+	  $address = "" if $address eq 'me';
+	  if  ($address) {
+		 print "You are not authorized to subscribe someone else to '$listname'.\n";
+		 return 0;
+	  }
+	  my $reply = $maillist->subscribe();
+	  print "Subscribed to $listname.\n" if $reply eq 'ok';
+  }
+}
+
+sub authSubscribe {
+  my ($maillist,$address) = @_;
+  my $reply = "";
+  my $help = "\n\nEnter one or more comma-separated email addresses,\nor \"quit\" to go back to the main prompt.\n\n";
+  print "authSubscribe ".$maillist->name()." $address\n" if DEBUG;
+  if ($address eq $main::LOGIN || $address eq 'me') {
+	  $reply = $maillist->subscribe();
+	  print "$address subscribed to list ".$maillist->name().".\n" if $reply eq 'ok';
+	  return 0;
+  }
+  
+  if ($address) {
+	  $reply = $maillist->subscribe($address);
+	  print "$address subscribed to list ".$maillist->name().".\n" if $reply eq 'ok';
+  } else {
+      while(1) {
+         my $input = askforwithdefault( "Enter address(es)", "", $help, 0 );
+         return -1 if $input =~ /^(q|quit)$/;
+         foreach $address (split /,/,$input) {
+	        $reply = $maillist->subscribe($address);
+	        print "$address subscribed to list ".$maillist->name().".\n" if $reply eq 'ok';
+	     }
+     }
+  }
+}
+
+sub resign {
+  unsubscribe(@_);
+}
+
+sub unsubscribe {
+  my ($listname,$address) = @_;
+  print "unsubscribe $listname $address\n" if DEBUG;
+  my $maillist = getMaillist($listname);
+  return -1 if $maillist == -1;
+  if ($address =~ /(.+)\@sfu.ca$/) {
+	 $address = $1;
+  }
+  if (($maillist->owner() eq $main::LOGIN) || $maillist->isManager($main::LOGIN) || $main::MLSERVICE->isAdminUser()) {
+     authUnsubscribe($maillist,$address);
+  } else {
+	  $address = "" if $address eq $main::LOGIN;
+	  $address = "" if $address eq 'me';
+	  if  ($address) {
+		 print "You are not authorized to unsubscribe someone else from '$listname'.\n";
+		 return 0;
+	  }
+	  my $reply = $maillist->unsubscribe();
+	  print "Unsubscribed from $listname.\n" if $reply eq 'ok';
+  }
+}
+
+sub authUnsubscribe {
+  my ($maillist,$address) = @_;
+  my $reply = "";
+  my $help = "\n\nEnter one or more comma-separated email addresses,\nor \"quit\" to go back to the main prompt.\n\n";
+  print "authUnsubscribe ".$maillist->name()." $address\n" if DEBUG;
+  if ($address eq $main::LOGIN || $address eq 'me') {
+	  $reply = $maillist->unsubscribe();
+	  print "$address unsubscribed from list ".$maillist->name().".\n" if $reply eq 'ok';
+	  return 0;
+  }
+  
+  if ($address) {
+	  $reply = $maillist->unsubscribe($address);
+	  print "$address unsubscribed from list ".$maillist->name().".\n" if $reply eq 'ok';
+  } else {
+      while(1) {
+         my $input = askforwithdefault( "Enter address(es)", "", $help, 0 );
+         return -1 if $input =~ /^(q|quit)$/;
+         foreach $address (split /,/,$input) {
+	        $reply = $maillist->unsubscribe($address);
+	        print "$address unsubscribed from list ".$maillist->name().".\n" if $reply eq 'ok';
+	     }
+     }
+  }
+}
+
+#
+# utility subroutines
+#
+
+     
+sub getType {
+  my ($type) = @_;
+  my $prompt = "List type";
+  my $help = "\n\nEnter the type of list that you want to create.\nThere are 2 types of lists you can create:\n    open        Anyone can join\n    closed      Only the owner or manager can add members\n";
+  #$help .= "    courselist  Automatically includes students registered in a specified course\n" if $main::MLSERVICE->canCreateCourselist();
+  $help .= "\n";
+  my @validTypes = qw(open closed);
+  push @validTypes, "courselist" if $main::MLSERVICE->canCreateCourselist();
+  print $help unless $type;
+  
+  while (!grep($type, @validTypes)) {
+     $type = askforwithdefault( $prompt, "", $help, 0 );
+     return -1 if $type =~ /^(q|quit)$/;
+  }
+  return $type;
+}
+
+sub getMaillist {
+  my ($listname) = @_;
+  my $maillist = undef;
+  my $help = "\n\nEnter the name of an existing mailing list.\n\n";
+  $listname = askforwithdefault("Enter list name", "", $help, 0) unless $listname;
+  until ($maillist) {
+     return -1 if $listname =~ /^(q|quit)$/;
+     $maillist = $main::MLSERVICE->getMaillistByName($listname);
+     last if $maillist;
+     if ($main::MLSERVICE->error() =~ /^No such list:/) {
+        print "Unknown mailing list - '$listname'.\n";
+        return -1 if $main::oneoff;
+        $listname = askforwithdefault("Enter list name", "", $help, 0);
+        next;
+     } else {
+	    print $main::MLSERVICE->error()."\n";
+        return -1;
+     }
+  }
+  return $maillist;
+}
+
+sub getModAttr {
+  my ($attr) = @_;
+  my @attrs = keys %main::MODATTRS;
+  my $help = "\nEnter the name of the attribute that you want to modify, or\n\"quit\" to go back to the main prompt.\nValid attributes are\n";
+  $help .= "Valid attributes are
+        members  (default)
+        type
+        manager
+        description
+        welcome
+        allow
+        deny
+        restricted
+        email_subscribe
+        newsgroup";
+
+  print "\nType the name of the attribute that you want to modify, OR\ntype \"?\" to get a list of attributes that you can modify, OR\njust hit ENTER to modify the members of the list.\n\n" unless $attr;
+  $attr = askforwithdefault("What do you want to modify?", "members", $help, 0) unless $attr;
+  until ($attr) {
+     return -1 if $attr =~ /^(q|quit)$/;
+     last if grep $attr, @attrs;
+     print "Invalid attribute for modify:$attr\n";
+     $attr = '';
+     $attr = askforwithdefault("What do you want to modify?", "members", $help, 0);
+  }
+  return $attr;
+}
+
+sub getNewListname {
+  my $prompt = "Enter new list name";
+  my $help = "\n\nEnter the name of the new mailing list. The name must meet the following criteria:\nAt least 3 chars; no more than 32 chars.\nThe name must contain at least one '-' char.\nThe name must not resemble an existing alias (ie. You cannot\ncreate john-smith if there is an alias john_smith on the system.\n\n";
+  my %warnings = (
+  	MAILLIST       => "conflicts with existing maillist.",
+  	MAJORDOMO      => "conflicts with existing majordomo list.",
+  	ALIAS          => "conflicts with existing alias.",
+  	RESTRICTED     => "is a restricted name.",
+  	LOGIN          => "conflicts with existing login."
+  );
+  my $name = "";
+  my $nam;
+  
+  while (1) {
+    $name = lc askforwithdefault( $prompt, "", $help, 0 );
+    return -1 if $name =~ /^(q|quit)$/;
+    if (length($name) <3) {
+       print "List name must be at least 3 chars long.\n";
+       next;
+    }
+    if (length($name)>32) {
+       print "List name cannot be more than 32 chars long.\n";
+       next;
+    }
+    if (index($name,'-')<0) {
+       print "List name must contain a '-' character.\n";
+       next;
+    }
+    $name =~ /^[a-z0123456789\-\_\&]+/;
+    unless ($name eq $&) {
+       print "List name contains an illegal character at: $'.\n";
+       next;
+    }
+    my $existingnames = $main::MLSERVICE->checkname($name);
+    my $nametype = @$existingnames[0];
+    unless ($nametype eq 'UNKNOWN') {
+    	print "\"$name\" ".$warnings{$nametype}."\n";
+    	next;
+    }
+    my $tmp = $name;
+    $tmp =~ tr/-/_/;
+    $existingnames = $main::MLSERVICE->checkname($tmp);
+    $nametype = @$existingnames[0];
+    unless ($nametype eq 'UNKNOWN') {
+    	print "\"$name\" ".$warnings{$nametype}."\n";
+    	next;
+    }
+    
+    last;
+  }
+  return $name;
+}
+
+sub getDescription {
+  my $prompt = "Description of list";
+  my $help = "\n\nEnter a one-line description of the list.\nThis description will be displayed by the \"info\" command.\nThe description is also used to generate a set of keywords\nfor the list.\n\n";
+  my $description = "";
+  until ($description) {
+     $description = askforwithdefault( $prompt, "", $help, 0 );
+     return -1 if $description =~ /^(q|quit)$/;
+     if (!$description) {
+        print "Description cannot be blank.\n";
+        next;
+     }
+  }
+  return $description;
+}
+
+sub getCoursename {
+  my $prompt = "Course name";
+  my $help = "\n\nEnter the calendar name of the course from which list members will be\n";
+  $help .= "automatically added. For example: cmpt101\n\n";
+  my $coursename = "";
+  print $help;
+  until ($coursename) {
+     $coursename = lc askforwithdefault( $prompt, "", $help, 0 );
+     return -1 if $coursename =~ /^(q|quit)$/;
+     if (!$coursename) {
+        print "Course name cannot be blank.\n";
+        next;
+     }
+     last if isValidCoursename($coursename);
+     print "No such course: $coursename\n";
+     $coursename = "";
+  }
+  return $coursename;
+}
+
+sub isValidCoursename {
+  my ($coursename) = @_;
+  my $sections = $main::MLSERVICE->getSections($coursename);
+  unless ($sections) {
+     print $main::MLSERVICE->error()."\n";
+     return 0;
+  }
+  return 1;
+}
+
+sub getSection {
+  my ($course,@sections) = @_;
+  my $prompt = "Section";
+  my $help = "Enter the section you want. For example: ".$sections[0]."\n\n";
+  my $section = "";
+  print $help;
+  until ($section) {
+     $section = lc askforwithdefault( $prompt, "", $help, 0 );
+     return -1 if $section =~ /^(q|quit)$/;
+     if (!$section) {
+        print "Section name cannot be blank.\n";
+        next;
+     }
+     last if grep($section, @sections);
+     print $course.'_'."$section - Invalid course/section combination.\n";
+     print "Please re-enter section\n";
+     $section = "";
+  }
+  return $section;
+}
+
+sub printNewListInfo {
+  my ($name,$owner,$type,$desc,$res,$allow,$mod,$email) = @_;
+  print "The following list will be created:\n";
+  print "Name:        $name\n";
+  print "Owner:       $owner\n";
+  print "Type:        $type\n";
+  print "Description: \"$desc\"\n";
+  print "Options:     ";
+  print "restricted sender\n             " if $res;
+  print "members can send\n             " if $allow;
+  print "moderated\n             " if $mod;
+  print "subscribe by email allowed\n" if $email;
+  print "\n";
+}
+
+sub fixValues {
+  my @values = ();
+  my $value = "";
+  foreach $value (@_) {
+    push @values, split /,/,$value;
+  }
+  return @values;
+}
+
+  
+

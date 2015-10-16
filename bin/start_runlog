@@ -1,0 +1,16 @@
+#!/bin/sh
+#
+# Simple script to start MLLogQueueRunner.jar.
+# This script will restart MLLogQueueRunner.jar if it dies, and log why it died.
+
+cd /usr/local/mail/maillist2/bin
+while true
+do
+        if [ -f /usr/local/mail/maillist2/bin/MLLogQueueRunner.jar ]; then
+                /opt/java/jre1.7.0_45/bin/java -jar MLLogQueueRunner.jar /opt/mail/maillist2/mlLogQueue
+                # We only reach here if the java process dies
+                echo "MLLogQueueRunner.jar died with error code: $? at \c"
+                date
+        fi
+done
+

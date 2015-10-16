@@ -1,0 +1,56 @@
+This directory contains scripts which comprise part of the maillist delivery system. Please see the ICAT wiki entry for the official documentation of the 
+maillist system. 
+
+mld.pl - The maillist delivery script. This script is started at boot time 
+         (see /etc/init.d/local) and manages the maillist queue at 
+         /opt/mail/maillist2/mlqueue, forking child processes to handle 
+         delivery of individual messages. 
+         See the comments in the script and "mld.pl -h" for runtime arguments.
+         See /opt/mail/maillist2/mld.conf for config information.
+
+mldstop  - Script which is run at shutdown to stop the mld.pl process. It sends
+           a QUIT signal to mld.pl, which then waits for any children to 
+           finish before exiting.
+
+mlupdate.pl - Run periodically via cron to update the cached maillist info in
+              /opt/mail/maillist2/files. It is also run via inetd - when a 
+              maillist is changed in Maillist2.woa, a connection is made from
+              garibaldi* to port 6087, and the name of the maillist is supplied
+              on STDIN. mlupdate.pl then updates the information for that 
+              maillist.
+
+mllockstat.pl - Run hourly via cron to check for messages stuck in the queue.
+                It checks for .lock files which are older than an hour and
+                emails a warning to amaint@sfu.ca.
+
+cleanmllogs - Script which cleans up old log files in /opt/mail/maillist2/logs.
+              Run nightly via cron.
+
+MLD.pm - Module which contains subroutines used by mld.pl which actually do 
+         the message delivery.
+
+MLUpdt.pm - Module used by mlupdate.pl.
+
+MLUtil.pm - Module containing some useful utility functions used by other
+            modules.
+
+LOCK.pm - Module with locking routines used by other scripts and modules.
+
+MLMail.pm - Module with utility functions for manipulating email addresses.
+
+MLCache.pm - Module which defines an MLCache object, which represents the cached
+             information for a maillist.
+
+Aliases.pm - Module with utility functions for handling aliases.
+
+util/    Directory with some useful scripts for debugging.
+     allowedToSend.pl - Give this script a listname and sender address on the 
+                        command line and it will return the "allowedToSend"
+                        value and how it was calculated.
+     mldbmlist.pl     - Give this script a listname and it will print the 
+                        maillist attributes from the local cache.
+                        
+See also /usr/local/bin/mlq.pl, which is the agent run by sendmail when mail
+is sent to a maillist. It puts the messages in the mailllist queue.
+
+test/   Directory which contains some useful scripts for testing. See test/README for more info.
