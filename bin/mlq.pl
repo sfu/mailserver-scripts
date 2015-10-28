@@ -30,11 +30,11 @@ use constant LOCK_EX => 2;
 use constant LOCK_NB => 4;
 use constant LOCK_UN => 8;
 
-$QFOLDER  = "/opt/mail/maillist2/mlqueue";
-#$QFOLDER  = "/tmp/mlqueue";
+use strict;
 
-$maillistname = $ARGV[0];
-$maxspamlevel = $ARGV[1];
+my $QFOLDER  = "/opt/mail/maillist2/mlqueue";
+my $maillistname = $ARGV[0];
+my $maxspamlevel = $ARGV[1];
 
 $main::TEST = 0;
 $main::DELIVER = 1;
@@ -42,7 +42,7 @@ $main::DELIVER = 1;
 openlog "mlq", "pid", "mail";
 syslog("info", "mlq started for $maillistname");
 syslog("info", "mlq max spam level for $maillistname is $maxspamlevel");
-my $msg  = Mail::Internet->new( STDIN );
+my $msg  = Mail::Internet->new( \*STDIN );
 my $headers = $msg->head();
 my $id = $headers->get("Message-Id");
 chomp $id;
@@ -65,7 +65,7 @@ if ( $subject =~ /[[:^ascii:]]/ ) {
 }
 
 my $fromheader = $headers->get("From") unless $fromheader;
-chomp $fromheader;
+chomp $fromheader if ($fromheader);
 unless ($fromheader) {
    syslog("info", "Message %s to %s rejected - missing From header.", $id, $maillistname);
    closelog();
@@ -77,7 +77,7 @@ my $mlinfo = new MLCache($maillistname);
 
 my $spamlevel = 0;
 my $barracudascore = $headers->get("X-Barracuda-Spam-Score");
-chomp $barracudascore;
+chomp $barracudascore if $barracudascore;
 if ($barracudascore) {
    $spamlevel = $barracudascore;
 } else {
@@ -141,7 +141,7 @@ sub numeric_spamlevel {
 	chomp $spamlevel_hdr;
 	$spamlevel_hdr =~ /Spam-Level (S*)/;
 	my $spamlevel = $1;
-	$spamlevel =~ s/^\s*//;
+	$spamlevel =~ s/^\s*// if defined $spamlevel;
 	return length($spamlevel);
 }
 
@@ -201,7 +201,7 @@ sub _detailJson {
 sub _appLog {
     my ($maillistname, $fromheader, $id, $subject) = @_;
     my $canonicalAddress;
-    my $from = ((Mail::Address->parse($fromheader))[0])->address();
+    my $from = ((Mail::Address->parse($fromheader))[0])->address() if defined $fromheader;
     #
     # If the from address contains non-ascii chars
     # MIME-Q encode it.
