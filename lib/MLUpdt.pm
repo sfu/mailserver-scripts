@@ -62,7 +62,6 @@ sub updateMaillistFiles {
     #
     unless (isManualList($listname)) {
       my @members = $ml->members();
-      #return cleanReturn("rest client returned undef members") unless defined @members;
       return cleanReturn("rest client returned undef members") unless @members;
       if ($ml->memberCount() != scalar @members) {
         unlink ${main::MLDIR}."/$listname/ts";
