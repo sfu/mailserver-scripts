@@ -2,6 +2,7 @@ package MLCache;
 
 require Exporter;
 @ISA    = qw(Exporter);
+use DB_File;
 use lib "/opt/mail/maillist2/bin";
 use LOCK;
 use MLMail;
@@ -41,11 +42,11 @@ sub new {
 	}
 	$self->{root} = $root;
 	_stdout("opening "."$root/files/$name/maillist") if $main::TEST;
-	dbmopen %CACHE, "$root/files/$name/maillist", 0660
-		or die "Can't dbmopen $root/files/$name/maillist: $!\n";
+	tie %CACHE, "DB_File", "$root/files/$name/maillist.db", O_RDONLY, 0660
+		or die "Can't dbmopen $root/files/$name/maillist.db: $!\n";
 	my @keys = keys %CACHE;
 	@$self{@keys} = values %CACHE;
-	dbmclose %CACHE;
+	untie %CACHE;
 	return $self;
 }
 

@@ -5,6 +5,7 @@ use lib "/opt/mail/maillist2/bin";
 use LOCK;
 use MLCache;
 use Aliases;
+use DB_File;
 
 require Exporter;
 @ISA    = qw(Exporter);
@@ -91,12 +92,13 @@ sub getUsername {
 
 sub validateUsername {
 	my $username = shift;
-	my ($name,$passwd,$uid,$gid,$q,$c,$gcos,$dir,$shell) = getpwnam $username;
-	#print "$username:$name,$passwd,$uid,$gid,$q,$c,$gcos,$dir,$shell\n";
-	return undef if !defined($passwd);
-	return undef unless $passwd;
-	return $username if $passwd ne '*';
-	return undef;
+ 	return validUser($username);
+ 
+ 	#my ($name,$passwd,$uid,$gid,$q,$c,$gcos,$dir,$shell) = getpwnam $username;
+ 	#return undef if !defined($passwd);
+ 	#return undef unless $passwd;
+ 	#return $username if $passwd ne '*';
+ 	#return undef;
 }
 
 sub isMaillist {
@@ -107,25 +109,25 @@ sub isMaillist {
 sub equivalentAddress {
     my ($addr) = @_;
     my %EQUIVS=();
-    dbmopen(%EQUIVS,"/opt/mail/equivs",0644) or return '';
+    tie(%EQUIVS,"DB_File","/opt/mail/equivs.db",O_RDONLY, 0644) or return '';
     my $equiv = $EQUIVS{"$addr\0"};
     $equiv = '' unless defined $equiv;
     chop $equiv if $equiv =~ /\0$/;
     return '' unless $equiv;
     my @users = split /:/, $equiv;
-    dbmclose %EQUIVS;
+    untie %EQUIVS;
     return $users[0];
 }
 
 sub equivalentAddresses {
     my ($addr) = @_;
     my %EQUIVS=();
-    dbmopen(%EQUIVS,"/opt/mail/equivs",0644) or return '';
+    tie(%EQUIVS,"DB_File","/opt/mail/equivs",O_RDONLY,0644) or return '';
     my $equiv = $EQUIVS{"$addr\0"};
     $equiv = '' unless defined $equiv;
     chop $equiv if $equiv =~ /\0$/;
     return undef unless $equiv;
     my @users = split /:/, $equiv;
-    dbmclose %EQUIVS;
+    untie %EQUIVS;
     return @users;
 }

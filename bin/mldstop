@@ -1,3 +1,3 @@
 #!/bin/sh
-/usr/bin/kill -QUIT `/usr/bin/cat /opt/mail/maillist2/mld.pid`
-/usr/bin/rm /opt/mail/maillist2/mlqueue/*.lock
+/bin/kill -QUIT `/bin/cat /opt/mail/maillist2/mld.pid`
+/bin/rm /opt/mail/maillist2/mlqueue/*.lock

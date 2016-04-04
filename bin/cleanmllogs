@@ -1,5 +1,5 @@
 #!/bin/sh
 cd /opt/mail/maillist2/logs
-/usr/bin/find . -name "*.gz" -mtime +90 -print|/usr/bin/grep '\.[0-9]\{10\}\.gz$'|xargs /usr/bin/rm -f
-/usr/bin/ls|/usr/bin/grep '\.[0-9]\{10\}$'|xargs /usr/bin/gzip
-mv mlupdt.log mlupdt.log.`/usr/bin/date +%y%m%d%H%M`
+/bin/find . -name "*.gz" -mtime +90 -print|/bin/grep '\.[0-9]\{10\}\.gz$'|xargs /bin/rm -f
+/bin/ls|/bin/grep '\.[0-9]\{10\}$'|xargs /bin/gzip
+mv mlupdt.log mlupdt.log.`/bin/date +%y%m%d%H%M`

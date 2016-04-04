@@ -1,4 +1,4 @@
-#!/usr/local/bin/perl
+#!/usr/bin/perl
 #
 # Change log:
 #  2006/11/15 Resolve issue ML-2

@@ -1,4 +1,4 @@
-#!/usr/local/bin/perl -w
+#!/usr/bin/perl -w
 #
 # mlqueue lock file scanner
 # -------------------------
@@ -17,6 +17,9 @@ $main::QUEUEDIR = "/opt/mail/maillist2/mlqueue";
 $main::TEST = 0;
 $main::DELIVER = 1;
 
+$hostname = `hostname -s`;
+chomp $hostname;
+
 opendir(QUEUE, $main::QUEUEDIR) or die "Can't open mlqueue directory.\n";
 my @allfiles = grep(!/^\.\.?$/, readdir(QUEUE));
 closedir QUEUE;
@@ -28,7 +31,7 @@ foreach $file (@allfiles) {
   if ((time - $mtime) > MAXQTIME) {
     # lock file is older than 2 hours send warning message
     _sendMail('amaint-system-messages@sfu.ca', 'mlqueue lock warning', 
-              "Message has been queued for > 2 hours on rm-rstar1: $file", 
+              "Message has been queued for > 2 hours on $hostname: $file", 
               'amaint@sfu.ca' );
     last;
   }

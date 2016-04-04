@@ -1,4 +1,4 @@
-#! /usr/local/bin/perl -w
+#!/usr/bin/perl -w
 #
 
 use Socket;
@@ -7,6 +7,8 @@ use LWP;
 use lib '/opt/mail/maillist2/bin';
 use LOCK;
 use MLUtils;
+use lib '/opt/mail/maillist2/lib/amaint';
+use ICATCredentials;
 #require 'getopts.pl';
 #use vars qw($main::MLDIR $main::TOKEN $main::SERVICE $opt_h $opt_a);
 
@@ -45,7 +47,8 @@ sub getAllActiveMaillists {
 my $list = '';
 my %activeList = ();
 
-       my $url = "https://my.sfu.ca/cgi-bin/WebObjects/ml2.woa/wa/getListNames?token=$token";
+       my $TOKEN = new ICATCredentials('maillist.json')->credentialForName('amaint')->{token};
+       my $url = "https://my.sfu.ca/cgi-bin/WebObjects/ml2.woa/wa/getListNames?token=$TOKEN";
        print "Getting $url" if $main::TEST;
        my $mldata = '';
        my $ua = LWP::UserAgent->new;

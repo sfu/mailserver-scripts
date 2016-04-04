@@ -1,4 +1,4 @@
-#!/usr/local/bin/perl -w
+#!/usr/bin/perl -w
 use Sys::Syslog;
 use Mail::Internet;
 use MIME::Base64;

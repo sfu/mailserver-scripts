@@ -1,8 +1,9 @@
 package Aliases;
 
+use DB_File;
 require Exporter;
 @ISA    = qw(Exporter);
-@EXPORT = qw( aliasToUsername isStaticAlias );
+@EXPORT = qw( aliasToUsername isStaticAlias validUser );
 
 #
 # return the equivalent username of a supplied alias,
@@ -11,11 +12,11 @@ require Exporter;
 sub aliasToUsername {
 	my $alias = shift;
 	return undef if isStaticAlias($alias);
-	dbmopen %ALIASES, "/opt/mail/aliases", 0666
+ 	tie %ALIASES, "DB_File","/opt/mail/aliases.db", O_RDONLY, 0666
 		or die "Can't open /opt/mail/aliases: $!\n";
 	my $username = $ALIASES{"$alias\0"};
 	if ($username) {
-		dbmclose %ALIASES;
+ 		untie %ALIASES;
 		chop $username;
 		$username =~ s/^\s+//;
 		$username =~ s/\s+$//;
@@ -24,7 +25,7 @@ sub aliasToUsername {
 	# might be a dotted form of alias
 	$alias =~ tr/./_/;
 	$username = $ALIASES{"$alias\0"};
-	dbmclose %ALIASES;
+ 	untie %ALIASES;
 	chop $username if $username;
 	$username =~ s/^\s+//;
 	$username =~ s/\s+$//;
@@ -51,5 +52,20 @@ sub loadStaticAliases {
 	}
 	close STATIC;
 	$main::StaticAliases = $sa;
+}
+
+# Returns user if user exists in secondary Aliases map (which
+# contains all users in passwd map)
+
+sub validUser {
+	my $user = shift;
+	tie %ALIASES, "DB_File", "/opt/mail/aliases2.db", O_RDONLY, 0666
+		or die "Can't open /opt/mail/aliases2.db: $!\n";
+	if (defined($ALIASES{"$user\0"})) {
+		untie %ALIASES;
+		return $user;
+	}
+	untie %ALIASES;
+	return undef;
 }
 

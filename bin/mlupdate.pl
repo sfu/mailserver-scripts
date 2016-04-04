@@ -1,4 +1,4 @@
-#! /usr/local/bin/perl 
+#!/usr/bin/perl 
 #
 # mlupdate.pl : A program run via inetd and/or cron to update the maillist 
 #                files.
@@ -33,13 +33,15 @@ $SIG{STOP} = 'IGNORE';
 $SIG{ALRM} = 'IGNORE';
 $SIG{TERM} = 'IGNORE';
 
-getopts('ath') or ( &printUsage && exit(0) );
+getopts('avth') or ( &printUsage && exit(0) );
+
 if ($opt_h) {
    &printUsage;
    exit(0);
 }
 $main::MLROOT = "/opt/mail/maillist2";
 $main::TEST = $opt_t ? $opt_t : 0;
+$main::VERBOSE = $opt_v ? $opt_v : $main::TEST;
 $main::MLROOT = "/tmp/maillist2" if $main::TEST;
 $main::LOGFILE = "${main::MLROOT}/logs/mlupdt.log"; 
 open STDOUT, ">>${main::LOGFILE}" or die "Can't redirect STDOUT";
@@ -47,9 +49,11 @@ open STDERR, ">&STDOUT" or die "Can't dup STDOUT";
 $main::MLDIR = "${main::MLROOT}/files";
 $main::UPDATEALL_LOCK = "${main::MLROOT}/mlupdate-a.lock";
 
+# Note, the URL below won't work as it relies on Rob's machine. Need to define new URL for use with MLRestClient
+# For now, it'll use prod maillist WO app calls but place files in temp location
 if ($main::TEST) {
-        *SOAP::Deserializer::typecast = sub {shift; return shift};
-	$main::SERVICEURL = "http://icat-rob-macpro.its.sfu.ca:60666/cgi-bin/WebObjects/Maillist.woa/ws/MLWebService";
+        # *SOAP::Deserializer::typecast = sub {shift; return shift};
+	# $main::SERVICEURL = "http://icat-rob-macpro.its.sfu.ca:60666/cgi-bin/WebObjects/Maillist.woa/ws/MLWebService";
 	_stdout( "MLROOT: ${main::MLROOT}\n" );
 	unless (-e $main::MLROOT) {
 		mkdir $main::MLROOT;
