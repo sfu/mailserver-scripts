@@ -1,5 +1,4 @@
 package MLUpdt;
-use SOAP::Lite ;
 use Sys::Syslog;
 use Mail::Internet;
 use Mail::Address;
@@ -9,6 +8,7 @@ use FileHandle;
 use Digest::MD5;
 use MIME::Base64;
 use Date::Format;
+use DB_File;
 # Find the lib directory above the location of myself. Should be the same directory I'm in
 # This isn't necessary if these libs get installed in a standard perl lib location
 use FindBin;
@@ -170,7 +170,8 @@ sub createMLCacheFile {
     
     my $listname = $ml->name();
     mkdir "${main::MLDIR}/$listname" unless -e "${main::MLDIR}/$listname";
-	dbmopen(%maillist,"${main::MLDIR}/$listname/maillist",0664) or return cleanReturn( "can't open cache: $!" );
+    tie( %maillist, "DB_File","${main::MLDIR/$listname/maillist.db", O_CREAT|O_RDWR,0664,$DB_HASH )
+          || or return cleanReturn("Can't create/open $listname/maillist.db: $!. Can't continue!");
 
     $maillist{activationDate} = $ml->activationDate();
     $maillist{allowedToSubscribeByEmail} = ($ml->allowedToSubscribeByEmail() eq 'true') ? 1 : 0;
@@ -217,7 +218,7 @@ sub createMLCacheFile {
     $maillist{type} = $ml->type();
     $maillist{unauthHandlingCode} = $ml->unauthHandlingCode();
     
-	dbmclose %maillist;
+    untie(%maillist);
 }
 
 sub localTimestamp {

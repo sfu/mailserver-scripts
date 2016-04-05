@@ -10,6 +10,7 @@ use Time::HiRes  qw( usleep ualarm gettimeofday tv_interval );
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 use AppLogQueue;
+use ICATCredentials;
 
 
 sub new {
@@ -19,6 +20,14 @@ sub new {
 	my $passcode = shift;
 	my $isTest = shift;
 	bless $self, $class;
+	if (!$login && !$passcode)
+	{
+		# Note: the user 'nullmail' which is the user that runs sendmail must have read access to /usr/local/credentials/activemq.json
+		my $cred = new ICATCredentials('activemq.json')->credentialForName('activemq');
+		$login = $cred->{mquser};
+		$passcode = $cred->{mqpass};
+	}
+
 	$self->{queue} = AppLogQueue->new( $login, $passcode, $isTest );
 	return $self;
 }

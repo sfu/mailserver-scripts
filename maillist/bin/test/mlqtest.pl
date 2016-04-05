@@ -193,6 +193,6 @@ sub _appLog {
     $msg->setDetail("$id to: $maillistname; from: $from; subject: $subject");
     $msg->setAppName("mlq");
     $msg->setTags(["$maillistname","$canonicalAddress","#mldelivery"]);
-    my $APPLOG = new SFUAppLog('icat2','2amq2go');
+    my $APPLOG = new SFUAppLog();
     $APPLOG->log('/queue/ICAT.test.log',$msg);
 }

@@ -1,0 +1,16 @@
+package Paths;
+use Exporter ();
+@ISA    = qw(Exporter);
+@EXPORT = qw($LOCKERDIR $LOCKDIR $ETCDIR $BINDIR $MAILDIR $YPDIR $YPSRCDIR $ALIASESDIR $CREDDIR $MAILLISTDIR);
+$LOCKERDIR="/opt/mail/amaint/var";
+$LOCKDIR="/opt/mail/amaint/var/amaintlocks";
+$ETCDIR="/opt/mail/amaint/etc";
+$BINDIR="/opt/mail/amaint/prod/bin";
+$LIBDIR="/opt/mail/amaint/prod/lib";
+$PUBBINDIR="/opt/bin";
+$MAILDIR="/opt/mail";
+$ALIASESDIR="/opt/mail";
+$YPDIR="/opt/mail";
+$YPSRCDIR="/var/yp/src";
+$CREDDIR="/opt/credentials/";
+$MAILLISTDIR="$MAILDIR/maillist2";

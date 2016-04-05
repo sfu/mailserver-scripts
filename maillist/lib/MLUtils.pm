@@ -3,6 +3,8 @@ require Exporter;
 @ISA    = qw(Exporter);
 @EXPORT = qw( _sleep _stdout _stderr _sendMail _altSendMail _sendExtras );
 
+my $sendmail = "/usr/sbin/sendmail";
+
 sub _sleep {
     my $time = 900;
     $main::sleepCounter++;
@@ -33,7 +35,6 @@ sub _sendMail {
       print "body: $body\n";
     }
     if ($main::DELIVER) {
-    	my $sendmail = '/usr/lib/sendmail';
     	open(MAIL, "|$sendmail -oi -t");
     	print MAIL "Precedence: list\n";
     	print MAIL "From: $from\n";
@@ -45,6 +46,7 @@ sub _sendMail {
     }
 }
 
+# old method to send outbound mail using a different souce IP. Won't be used on Linux so use same sendmail instance
 sub _altSendMail {
     my ($to, $subject, $body, $from) = @_;
     if ($main::TEST) {
@@ -55,7 +57,6 @@ sub _altSendMail {
       print "body: $body\n";
     }
     if ($main::DELIVER) {
-    	my $sendmail = '/usr/lib/sendmail-vacation';
     	open(MAIL, "|$sendmail -oi -t");
     	print MAIL "Precedence: list\n";
     	print MAIL "From: $from\n";
@@ -80,7 +81,6 @@ sub _sendExtras {
       print "body: $body\n";
     }
     if ($main::DELIVER) {
-        my $sendmail = '/usr/lib/sendmail-vacation';
         open(MAIL, "|$sendmail -oi -t");
         print MAIL "Precedence: list\n";
         foreach $xhdr (keys %xheaders) {

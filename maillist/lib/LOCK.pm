@@ -76,7 +76,7 @@ sub check_pid {
     my($pid,$junk);
     
     if ($lockpid) {
-        open(PS, "/usr/bin/ps -p $lockpid|");
+        open(PS, "/bin/ps -p $lockpid|");
         while (<PS>) {
             s/^\s*//;
             ($pid,$junk) = split / /,$_,2;

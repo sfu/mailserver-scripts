@@ -18,6 +18,6 @@ $main::MLROOT = "/tmp/maillist2" if $main::TEST;
 log_filter("debug caller=~^Net::STOMP::Client");
 $Net::STOMP::Client::Debug = "connection api io";
 
-$appLogQueue = new AppLogQueue('icat2','2amq2go', $opt_t);
+$appLogQueue = new AppLogQueue(undef,undef, $opt_t);
 print( "Running queue\n");
 $appLogQueue->runQueue();

@@ -8,6 +8,7 @@ use lib "$FindBin::Bin/../lib";
 use LOCK;
 use MLCache;
 use Aliases;
+use Paths;
 use DB_File;
 
 require Exporter;
@@ -106,13 +107,13 @@ sub validateUsername {
 
 sub isMaillist {
 	my $name = shift;
-	return -e "/opt/mail/maillist2/files/$name";
+	return -e "$MAILLISTDIR/files/$name";
 }
 
 sub equivalentAddress {
     my ($addr) = @_;
     my %EQUIVS=();
-    tie(%EQUIVS,"DB_File","/opt/mail/equivs.db",O_RDONLY, 0644) or return '';
+    tie(%EQUIVS,"DB_File","$MAILDIR/equivs.db",O_RDONLY, 0644) or return '';
     my $equiv = $EQUIVS{"$addr\0"};
     $equiv = '' unless defined $equiv;
     chop $equiv if $equiv =~ /\0$/;
@@ -125,7 +126,7 @@ sub equivalentAddress {
 sub equivalentAddresses {
     my ($addr) = @_;
     my %EQUIVS=();
-    tie(%EQUIVS,"DB_File","/opt/mail/equivs",O_RDONLY,0644) or return '';
+    tie(%EQUIVS,"DB_File","$MAILDIR/equivs.db",O_RDONLY,0644) or return '';
     my $equiv = $EQUIVS{"$addr\0"};
     $equiv = '' unless defined $equiv;
     chop $equiv if $equiv =~ /\0$/;

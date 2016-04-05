@@ -3,6 +3,8 @@ require Exporter;
 @ISA    = qw(Exporter);
 @EXPORT = qw( validSFUID validName cleanName validPhone cleanPhone validHours xtrim _sleep _stdout _stderr _sendMail _altSendMail );
 
+my $sendmail = "/usr/sbin/sendmail";
+
 sub _sleep {
     my $time = 900;
     $main::sleepCounter++;
@@ -33,7 +35,6 @@ sub _sendMail {
       print "body: $body\n";
     }
     if ($main::DELIVER) {
-        my $sendmail = '/usr/lib/sendmail';
         open(MAIL, "|$sendmail -oi -t");
         print MAIL "Precedence: list\n";
         print MAIL "From: $from\n";
@@ -55,7 +56,6 @@ sub _altSendMail {
       print "body: $body\n";
     }
     if ($main::DELIVER) {
-        my $sendmail = '/usr/lib/sendmail-vacation';
         open(MAIL, "|$sendmail -oi -t");
         print MAIL "Precedence: list\n";
         print MAIL "From: $from\n";

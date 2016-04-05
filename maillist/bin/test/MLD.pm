@@ -784,7 +784,7 @@ sub _appLog {
     $msg->setAppName("mld");
     $msg->setTags($tags);
     syslog("info", "%s Sending applog message", $main::ID);
-    my $APPLOG = new SFUAppLog('icat2','2amq2go');
+    my $APPLOG = new SFUAppLog();
     eval { $APPLOG->log('/queue/ICAT.log',$msg); };
     if ($@) {
         syslog("err", "%s eval failed for call to APPLOG log", $main::ID);

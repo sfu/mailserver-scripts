@@ -10,7 +10,7 @@ $msg->{detail} = "testing stomp";
 $msg->{appName} = "testLogMessage";
 print $msg->xml;
 
-my $APPLOG = new AppLog('icat2','2amq2go');
+my $APPLOG = new AppLog();
 #$APPLOG->log('/queue/ICAT.test.log',$msg);
 exit 0;
 

@@ -13,7 +13,7 @@ $msg->setAppName("applogtest");
 $msg->{timestamp} = &gettimestamp;
 $msg->{tags} = ["ic-info","robert", "#mldelivery"];
 
-my $APPLOGQUEUE = new AppLogQueue('icat2','2amq2go', $main::TEST);
+my $APPLOGQUEUE = new AppLogQueue(undef,undef, $main::TEST);
 $APPLOGQUEUE->queue( '/queue/ICAT.log', $msg );
 $APPLOGQUEUE->runQueue();
 exit(0);

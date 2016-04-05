@@ -225,7 +225,7 @@ sub _appLog {
     $msg->setDetail(_detailJson($id, $from, $subject,''));
     $msg->setAppName("mlq");
     $msg->setTags(["$maillistname","$canonicalAddress","#mldelivery"]);
-    my $APPLOG = new SFUAppLog('icat2','2amq2go');
+    my $APPLOG = new SFUAppLog();
     eval { $APPLOG->log('/queue/ICAT.log',$msg); };
     if ($@) {
 	    syslog("err", "%s eval failed for call to APPLOG log", $main::ID);

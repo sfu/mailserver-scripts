@@ -7,6 +7,7 @@ use DB_File;
 # This isn't necessary if these libs get installed in a standard perl lib location
 use FindBin;
 use lib "$FindBin::Bin/../lib";
+use Paths;
 use LOCK;
 use MLMail;
 use MLUtils;
@@ -36,7 +37,7 @@ sub new {
 	my $self = {};
 	bless $self, $class;
 	$root = $main::MLROOT unless $root;
-	$root = "/opt/mail/maillist2" unless $root;
+	$root = $MAILLISTDIR unless $root;
 	_refreshCache($name);
 	unless (-e "$root/files/$name") {
 		_stderr("$root/files/$name/maillist doesn't exist!") if $main::TEST;
@@ -44,7 +45,7 @@ sub new {
 	}
 	$self->{root} = $root;
 	_stdout("opening "."$root/files/$name/maillist") if $main::TEST;
-	tie	%CACHE,"DB_File", "$root/files/$name/maillist.db",O_RDONLY, 0660
+	tie %CACHE, "DB_File", "$root/files/$name/maillist.db", O_RDONLY, 0660
 		or die "Can't dbmopen $root/files/$name/maillist.db: $!\n";
 	my @keys = keys %CACHE;
 	@$self{@keys} = values %CACHE;

@@ -1,6 +1,7 @@
 package ICATCredentials;
 use Utils;
 use JSON;
+use Paths;
 require Exporter;
 @ISA = qw(Exporter);
 
@@ -19,7 +20,7 @@ sub init {
 
     $self->{name}    = $name;
     $self->{credDir} = $dir;
-    $self->{credDir} = "/usr/local/credentials/" unless $dir;
+    $self->{credDir} = $REDDIR unless $dir;
     my $credfile = $self->{credDir} . $name;
     print( "credfile is " . $credfile ) if $main::TEST;
     local $/;

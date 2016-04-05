@@ -7,7 +7,7 @@ use Sys::Syslog;
 use Time::HiRes  qw( usleep ualarm gettimeofday tv_interval );
 use MIME::Base64;
 use Net::Stomp;
-use lib "/opt/mail/maillist2/bin";
+use Paths;
 use LOCK;
 use SFULogMessage;
 
@@ -31,7 +31,7 @@ sub new {
 	$self->{passcode} = $passcode;
 	$self->{isProd} = !$isTest;
 	$self->{queueDir} = "/tmp/mlLogQueue";
-	$self->{queueDir} = "/opt/mail/maillist2/mlLogQueue" if $self->{isProd};
+	$self->{queueDir} = $MAILLISTDIR."/mlLogQueue" if $self->{isProd};
 	_stdout("queue dir is ".$self->{queueDir});
 	return $self;
 }
