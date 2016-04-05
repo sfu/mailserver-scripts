@@ -1,0 +1,139 @@
+#!/usr/bin/perl
+#
+# getpw2.pl <machine_name>: A program to extract 'passwd' file information
+#           from Amaint and use it to build a secondary alias file.
+#	    This maps to all users in Connect who can receive mail
+#
+# Changes
+# -------
+#       Don't build passwd entries for disabled accounts.       94/11/18 RAU
+#       Make script work on both catacomb and solaris servers.  96/01/24 RAU
+#       Point ypmaster back to seymour.sfu.ca from old-seymour. 96/08/01 RAU
+#       Add checkpid subroutine and use it to check lock file.  97/04/07 RAU
+#       Updated for perl5 and sybperl 2.                        97/09/11 RAU
+#       Updated to use Amaint.pm.                               98/03/30 RAU
+#       Updated for Paths.pm module.                            99/07/13 RAU
+#       Only include disabled/locked accts if forward flag set. 00/03/06 RAU
+#       Set a valid shell if for included disabled accounts.  2004/01/26 RAU
+#       Modified to build an Aliases map for the mail gateway 2004/02/16 SH
+#       Added a "blockfile" to exclude certain users from     2004/04/07 SH
+#          aliases map (makes them "internal only" accounts     
+#   	Use SOAP calls instead of direct db access            2007/10/11 RAU
+#   	Use Amaintr.pm module. Moved to ~/prod/bin              2013/05/15 RU
+#	Linux support: Convert from dbm to DB_file, change filenames	2014/01/15 SH
+
+use Getopt::Std;
+use lib '/opt/amaint/prod/lib';
+use Paths;
+use Amaintr;
+use Utils;
+use LOCK;
+use ICATCredentials;
+use DB_File;
+
+@nul = ('not null','null');
+select(STDOUT); $| = 1;         # make unbuffered
+$SIG{'INT'}  = 'EXITHANDLER';
+$SIG{'HUP'}  = 'EXITHANDLER';
+$SIG{'QUIT'} = 'EXITHANDLER';
+$SIG{'PIPE'} = 'EXITHANDLER';
+$SIG{'ALRM'} = 'EXITHANDLER';
+
+getopts('t') or die("Bad options");
+$main::TEST = $opt_t ? $opt_t : 0;
+
+# The following variables define NIS and other locations.
+$mailhost = "connect.sfu.ca";
+$YPDIR = "/opt/mail";
+$YPDIR = "/tmp" if $main::TEST;
+$BLOCKFILE = "$YPDIR/blockfile";
+$LOCKFILE = "$LOCKDIR/passwd.lock";             
+$ALIASFILE = "$YPDIR/aliases2";
+$TMPALIASFILE = "$ALIASFILE.new";
+use constant SHELL => "/bin/sh";
+
+exit(0) if lockInUse( $LOCKFILE );
+acquire_lock( $LOCKFILE );
+my $cred = new ICATCredentials('amaint.json') -> credentialForName('amaint');
+my $TOKEN = $cred->{'token'};
+
+my $amaintr = new Amaintr($TOKEN, $main::TEST);
+
+# Collect list of IDs/aliases that we shouldn't include
+if (open (BLOCK, "$BLOCKFILE"))
+{
+    while (<BLOCK>)
+    {
+        next if (/^#/);   # skip comment lines
+        chomp;
+        push @blocks, $_;
+    }
+    close BLOCK;
+}
+
+# Clean out any existing temporary aliases map.
+unlink "$YPDIR/aliases2.tmp.dir","$YPDIR/aliases2.tmp.pag", $TMPALIASFILE;
+
+# Get the passwd file information from the account maintenance database.
+my $passwd = $amaintr->getPW();
+
+# Open the temporary maps.
+tie( %ALIASES, "DB_File","$YPDIR/aliases2.tmp", O_CREAT|O_RDWR,0644,$DB_HASH )
+  || die "Can't open aliases map $YPDIR/aliases2.tmp.";
+
+
+open( ALIASESSRC, ">$TMPALIASFILE" ) || die "Can't open aliases source file: ${TMPALIASFILE}.\n\n";
+
+$modtime=sprintf("%010d", time);
+$ALIASES{"YP_LAST_MODIFIED"} = $modtime;
+$ALIASES{"YP_MASTER_NAME"} = $YPMASTER;
+
+$atsign="@";
+$ALIASES{ "$atsign\0" } = "$atsign\0";
+
+my $count=0;
+foreach $line (split /\n/,$passwd) {
+        ($username, $pw, $uid, $gid, $gcos, $homedir, $shell) = split /:/,$line;
+        print "$username:$pw:$uid:$gid:$gcos:$homedir:$shell\n" if $main::TEST;
+        my $found = 0;
+        foreach $block(@blocks) {
+                if ($username eq $block) {
+                        $found = 1;
+                        last;
+                }
+        }
+        if (!$found) {
+                #   Put entries in the aliases map
+                $ALIASES{"$username\0"} = "$username\@$mailhost\0";
+                print ALIASESSRC "$username: $username\@$mailhost\n";
+        }
+        $count++;
+}
+
+untie (%ALIASES);
+
+&cleanexit if $main::TEST;  # For debugging
+
+# Move the temporary maps to their permanent places.
+open(JUNK, "mv $YPDIR/aliases2.tmp $YPDIR/aliases2.db|" );
+open(JUNK, "mv $TMPALIASFILE $ALIASFILE|" );
+
+release_lock( $LOCKFILE );
+
+exit 0;
+
+#
+#       Local subroutines
+#
+
+sub cleanexit {
+        release_lock( $LOCKFILE );
+        exit 1;
+}
+
+sub EXITHANDLER  {
+        system 'stty', 'echo';
+        print "\n\nAborted.";
+        &cleanexit;
+}
+

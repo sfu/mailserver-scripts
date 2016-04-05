@@ -1,0 +1,9 @@
+#!/bin/sh
+# A GLSS to set up the environment for cron jobs to execute "just like home".
+# - 9 Sep 95 - RAC
+#
+HOME=/usr/local/amaint
+export HOME
+PATH=/opt/bin:/usr/bin:/bin:/usr/sbin
+export PATH
+$1 $2 $3 $4 $5 $6 $7 $8 $9

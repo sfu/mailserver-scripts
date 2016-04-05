@@ -1,0 +1,54 @@
+# Build the main aliases map
+# This only needs to run on Pobox1/2
+#21,51 0-2,7-23 * * * /opt/amaint/prod/bin/cron_with_env /opt/amaint/prod/bin/getaliases2.pl mailserver >>/tmp/getaliases2.log 2>&1
+#
+# Rebuild the 'users' aliases map (a modified version of the passwd map) nightly
+#
+16 3 * * * /opt/amaint/prod/bin/cron_with_env /opt/amaint/prod/bin/getpw2.pl mailserver >>/tmp/getpw2.log 2>&1
+#
+
+####################
+# Aliases-related processing
+#
+# Get the user aliases
+#
+16,46 * * * * /opt/amaint/prod/bin/cron_with_env /opt/amaint/prod/bin/getaliases.pl > /tmp/getaliases.out 2>&1; if [ -s /tmp/getaliases.out ]; then cat /tmp/getaliases.out |/bin/mailx -s "Results of getaliases on mailgw1"  amaint-system-messages@sfu.ca; fi
+#
+# Get the maillist aliases
+#
+1,11,21,31,41,51 * * * * /opt/amaint/prod/bin/cron_with_env /opt/amaint/prod/bin/buildMLAliases.pl >>/tmp/buildMLAliases.log 2>&1
+#
+# Add new Zimbra users to aliases file to point their mail at zimbra server.
+# Done every 20 mins
+#
+##2,22,42 * * * * /opt/amaint/prod/bin/getzimbraaliases.pl -a > /tmp/zaliases.out 2>&1; if [ -s /tmp/zaliases.out ]; then cat /tmp/zaliases.out | /bin/mailx -s "Results of getzimbraaliases on rm-rstar" zimbra@sfu.ca ; fi
+#
+# Get lightweight aliases
+#
+10,40 * * * * /opt/amaint/prod/bin/update_lightweight_aliases.pl  > /tmp/lwaliases.out 2>&1; if [ -s /tmp/lwaliases.out ]; then cat /tmp/lwaliases.out | /bin/mailx -s "Results of Lightweight Aliases update from mailgw1" amaint-system-messages@sfu.ca; fi
+#
+45 9 * * * /opt/amaint/prod/bin/cron_with_env /opt/amaint/prod/bin/getZimbraForwards.pl > /tmp/gzf.out 2>&1; if [ -s /tmp/gzf.out ]; then cat /tmp/gzf.out  | /bin/mailx -s "Results of getZimbraForwards on mailgw1" amaint-system-messages; fi
+#
+# Scan the Zimbra LDAP server for forwarding addresses to create the equivs files.
+20 23 * * * /opt/amaint/prod/bin/getequivs.pl > /dev/null
+
+####################
+# Maillist processing
+#
+#  Update the local maillist files for mld
+#
+#02,32 * * * * /opt/amaint/etc/cron_with_env /opt/mail/maillist2/bin/mlupdate.pl -a
+#
+# Clean maillist logs once a week
+# Clean inactive maillists from the files directory once a week
+#
+0 1 * * 1 /opt/amaint/prod/bin/cron_with_env /opt/mail/maillist2/bin/cleanmllogs
+0 1 * * 1 /opt/amaint/prod/bin/cron_with_env /opt/mail/maillist2/bin/cleanInactiveMaillists.pl
+#
+# Check the queue for stuck messages every hour
+#
+0 * * * * /opt/amaint/prod/bin/cron_with_env /opt/mail/maillist2/bin/mllockstat.pl  > /tmp/mlls.out 2>&1; if [ -s /tmp/mlls.out ]; then cat /tmp/mlls.out | /bin/mailx -s "Results of mllockstat on mailgw1" amaint-system-messages@sfu.ca ; fi
+#
+# Check the ml2aliases file  every hour
+#
+0 * * * * /opt/amaint/prod/bin/cron_with_env /opt/mail/maillist2/bin/ml2aliasesstat.pl  2>&1

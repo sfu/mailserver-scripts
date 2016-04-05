@@ -1,0 +1,179 @@
+#! /usr/local/bin/perl
+#
+# getaliases.pl: A program to extract 'aliases' file information from
+# Amaint, and use it to build an NIS alias map and a backup text file.
+#
+# Changes
+# -------
+#	Check nislock and exit if it is set.					94/08/15  RAU
+#	Check alias_build_in_progress flag and exit if it is set.94/10/31  RAU
+#	If acct is disabled, don't build alias entries.			94/11/18  RAU
+#	Get status when doing alias-to-username mappings.		95/06/29  RAU
+#	Remove byaddr maps (not needed for current sendmail) and alter map
+#	names to build private maps for mail server instead of NIS maps.95/08/30  RAC
+#	Stop including the static aliases (now in a separate map).	95/08/03  RAC
+#	Include aliases from the static_aliases table			96/02/16 RAU
+#	Include maillists from the maillist table				96/07/04 RAU
+#	Use lock file instead of db flag						97/03/20 RAU
+#	Fix deadlock handling code.
+#	Updated for perl5 and sybperl 2.						97/09/11  RAU
+#	Updated for Amaint.pm.									98/03/31  RAU
+#	Updated for use of bulk_mailer for restricted lists.				98/03/31  RAU
+#	Stop generating maillist aliases. (Moved to buildMLAliases.pl) 2006/07/06 RAU
+#	Added code to generate aliases for consolidated IDs		2007/04/20 RU
+#	Get aliases for consolidated ids from static file.      2007/06/07 RU
+#	Use SOAP service to get alias data.                     2007/10/01 RU
+#   Use Amaintr.pm module. Moved to ~/prod/bin              2013/05/15 RU
+#
+
+use Getopt::Std;
+use lib '/opt/amaint/prod/lib';
+use Amaintr;
+use Utils;
+use LOCK;
+use ICATCredentials;
+use Paths;
+
+select(STDOUT);
+$|           = 1;               # make unbuffered
+$SIG{'INT'}  = 'EXITHANDLER';
+$SIG{'HUP'}  = 'EXITHANDLER';
+$SIG{'QUIT'} = 'EXITHANDLER';
+$SIG{'PIPE'} = 'EXITHANDLER';
+$SIG{'ALRM'} = 'EXITHANDLER';
+
+$ALIASMAPNAME       = "$ALIASESDIR/aliases";
+$ALIASFILE          = "$ALIASESDIR/aliases";
+$TMPALIASFILE       = "$ALIASFILE.new";
+$STATICFILE         = "$ALIASESDIR/staticaliases";
+$TMPSTATICFILE      = "$STATICFILE.new";
+$SINGLEIDALIASES    = "$ALIASESDIR/singleid_aliases";
+$LIGHTWEIGHTALIASES = "$ALIASESDIR/lightweightaliases";
+$LOCKFILE           = "$LOCKDIR/aliases.lock";
+$MINCOUNT           = 173000;
+
+getopts('t') or die("Bad options");
+$main::TEST = $opt_t ? $opt_t : 0;
+
+exit(0) if lockInUse($LOCKFILE);
+acquire_lock($LOCKFILE);
+my $cred  = new ICATCredentials('amaint.json')->credentialForName('amaint');
+my $TOKEN = $cred->{'token'};
+
+my $amaintr = new Amaintr( $TOKEN, $main::TEST );
+
+open( ALIASESSRC, ">$TMPALIASFILE" )
+  || die "Can't open aliases source file: ${TMPALIASFILE}.\n\n";
+open( STATIC, ">$TMPSTATICFILE" )
+  || die "Can't open static aliases file: ${TMPSTATICFILE}.\n\n";
+
+# Clean out any existing temporary YP map.
+unlink "$ALIASMAPNAME.tmp.dir", "$ALIASMAPNAME.tmp.pag";
+
+# Open the temporary maps.
+dbmopen( %ALIASES, "$ALIASMAPNAME.tmp", 0644 )
+  || die "Can't open aliases map $ALIASMAPNAME.tmp.";
+
+$modtime = sprintf( "%010d", time );
+$ALIASES{"YP_LAST_MODIFIED"} = $modtime;
+$ALIASES{"YP_MASTER_NAME"}   = $YPMASTER;
+
+# Insert the static '@' entry.
+
+$atsign = "@";
+$ALIASES{"$atsign\0"} = "$atsign\0";
+
+# Get the aliases file information for the active users from the account maintenance database.
+
+# Process the lightweight aliases
+
+my $count = 0;
+open( LIGHTWEIGHT, "<$LIGHTWEIGHTALIASES" )
+  || die "Can't open lightweight alias file:${LIGHTWEIGHTALIASES
+}.\n\n";
+while (<LIGHTWEIGHT>) {
+    chomp;
+    &process_alias($_);
+    print STATIC "$_\n";
+    $count++;
+}
+close LIGHTWEIGHT;
+
+# Process the Single-ID aliases
+
+open( SINGLEID, "<$SINGLEIDALIASES" )
+  || die "Can't open singleid alias file:${SINGLEIDALIASES
+}.\n\n";
+while (<SINGLEID>) {
+    chomp;
+    &process_alias($_);
+    print STATIC "$_\n";
+    $count++;
+}
+close SINGLEID;
+
+# Process the static_aliases table
+
+my $static = $amaintr->getStaticAliases();
+if ( $static =~ /^err / ) {
+    cleanexit($static);
+}
+foreach $row ( split /\n/, $static ) {
+    &process_alias($row);
+    print STATIC $row . "\n";
+    $count++;
+}
+
+# Process the alias-to-username mappings for this range
+
+my $users = $amaintr->getAliases();
+if ( $users =~ /^err / ) {
+    cleanexit($users);
+}
+foreach $row ( split /\n/, $users ) {
+    &process_alias($row);
+    $count++;
+}
+
+close(STATIC);
+close(ALIASESSRC);
+dbmclose(%ALIASES);
+
+&cleanexit('test run exiting') if $main::TEST;
+&cleanexit("New aliases file < low water mark: $count") if $count < $MINCOUNT;
+
+# Move the temporary maps and files to their permanent places.
+open( JUNK, "mv $TMPALIASFILE $ALIASFILE|" );
+open( JUNK, "mv $TMPSTATICFILE $STATICFILE|" );
+open( JUNK, "mv $ALIASMAPNAME.tmp.dir $ALIASMAPNAME.dir|" );
+open( JUNK, "mv $ALIASMAPNAME.tmp.pag $ALIASMAPNAME.pag|" );
+open( JUNK, "touch $ALIASMAPNAME.pag|" );
+
+release_lock($LOCKFILE);
+exit 0;
+
+#
+#	Local subroutines
+#
+
+sub process_alias {
+    my $inalias = shift;
+    my ( $theindex, $theentry ) = split( ':', $inalias, 2 );
+
+    $theindex =~ tr/A-Z/a-z/;
+    $theentry =~ tr/A-Z/a-z/;
+
+    $ALIASES{"$theindex\0"} = "$theentry\0";
+    print ALIASESSRC "$theindex: $theentry\n";
+}
+
+sub cleanexit {
+    my $msg = shift;
+    _stderr($msg);
+    release_lock($LOCKFILE);
+    exit 1;
+}
+
+sub EXITHANDLER {
+    &cleanexit("Aborted");
+}

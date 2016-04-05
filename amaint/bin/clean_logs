@@ -1,0 +1,5 @@
+#!/bin/sh
+cd /opt/amaint/etc/logs
+/usr/bin/find . -name "*.gz" -mtime +14 -print|/usr/bin/grep '\.[0-9]\{10\}\.gz$'|xargs /usr/bin/rm -f
+/usr/bin/ls|/usr/bin/grep '\.[0-9]\{10\}$'|xargs /usr/bin/gzip
+
