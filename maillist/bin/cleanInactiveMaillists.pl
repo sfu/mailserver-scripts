@@ -8,6 +8,7 @@ use LWP;
 # This isn't necessary if these libs get installed in a standard perl lib location
 use FindBin;
 use lib "$FindBin::Bin/../lib";
+use Paths;
 use LOCK;
 use MLUtils;
 use ICATCredentials;
@@ -17,7 +18,7 @@ use ICATCredentials;
 select(STDOUT); $| = 1;         # make unbuffered
 
 # TODO: Make log path relative
-$main::LOGFILE = "/opt/mail/maillist2/logs/mlupdt.log";
+$main::LOGFILE = "$MAILLISTDIR/logs/mlupdt.log";
 open STDOUT, ">>${main::LOGFILE}" or die "Can't redirect STDOUT";
 open STDERR, ">&STDOUT" or die "Can't dup STDOUT";
 
@@ -33,16 +34,16 @@ foreach my $maillistDir (@localMaillistArray) {
                next if index($maillistDir, "-") == -1;
                next if substr($maillistDir, 0, 1) eq ' ';
                _stdout( "Deleting inactive \'$maillistDir\'" );
-               `rm -f /opt/mail/maillist2/files/$maillistDir/allow`;
-               `rm -f /opt/mail/maillist2/files/$maillistDir/deny`;
-               `rm -f /opt/mail/maillist2/files/$maillistDir/maillist.dir`;
-               `rm -f /opt/mail/maillist2/files/$maillistDir/maillist.pag`;
-               `rm -f /opt/mail/maillist2/files/$maillistDir/members`;
-               `rm -f /opt/mail/maillist2/files/$maillistDir/deliveryList`;
-               `rm -f /opt/mail/maillist2/files/$maillistDir/ts`;
-               `rm -f /opt/mail/maillist2/files/$maillistDir/acl` if -e "/opt/mail/maillist2/files/$maillistDir/acl";
-               `rm -f /opt/mail/maillist2/files/$maillistDir/maillist.txt` if -e "/opt/mail/maillist2/files/$maillistDir/maillist.txt";
-               `rmdir /opt/mail/maillist2/files/$maillistDir`;
+               `rm -f $MAILLISTDIR/files/$maillistDir/allow`;
+               `rm -f $MAILLISTDIR/files/$maillistDir/deny`;
+               `rm -f $MAILLISTDIR/files/$maillistDir/maillist.dir`;
+               `rm -f $MAILLISTDIR/files/$maillistDir/maillist.pag`;
+               `rm -f $MAILLISTDIR/files/$maillistDir/members`;
+               `rm -f $MAILLISTDIR/files/$maillistDir/deliveryList`;
+               `rm -f $MAILLISTDIR/files/$maillistDir/ts`;
+               `rm -f $MAILLISTDIR/files/$maillistDir/acl` if -e "$MAILLISTDIR/files/$maillistDir/acl";
+               `rm -f $MAILLISTDIR/files/$maillistDir/maillist.txt` if -e "$MAILLISTDIR/files/$maillistDir/maillist.txt";
+               `rmdir $MAILLISTDIR/files/$maillistDir`;
        }
 }
 
@@ -50,6 +51,7 @@ sub getAllActiveMaillists {
 my $list = '';
 my %activeList = ();
 
+	# TODO: Convert to MLRest calls
        my $TOKEN = new ICATCredentials('maillist.json')->credentialForName('amaint')->{token};
        my $url = "https://my.sfu.ca/cgi-bin/WebObjects/ml2.woa/wa/getListNames?token=$TOKEN";
        print "Getting $url" if $main::TEST;
@@ -90,7 +92,7 @@ return %activeList;
 }
 
 sub getLocalMaillists {
-my $maillistDir = "/opt/mail/maillist2/files";
+my $maillistDir = "$MAILLISTDIR/files";
        my @LIST = ();
        opendir my($dh), $maillistDir or die ("Couldn't open '$maillistDir': $!\n");
        my @localMaillistDir = readdir $dh;

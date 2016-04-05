@@ -21,22 +21,23 @@ use Getopt::Std;
 # This isn't necessary if these libs get installed in a standard perl lib location
 use FindBin;
 use lib "$FindBin::Bin/../lib";
+use Paths;
 use MLD;
 use MLUtils;
 select(STDOUT); $| = 1;         # make unbuffered
 $ENV{PATH} = '/bin:/usr/bin';
 use vars qw($opt_c $opt_d $opt_h $opt_n $opt_t $DELIVER);
 
-use constant CONFIGFILE => "/opt/mail/maillist2/mld.conf";
-use constant QUEUE => "/opt/mail/maillist2/mlqueue";
-use constant LOG => "/opt/mail/maillist2/logs/mld.log";
+use constant CONFIGFILE => "$MAILLISTDIR/mld.conf";
+use constant QUEUE => "$MAILLISTDIR/mlqueue";
+use constant LOG => "$MAILLISTDIR/logs/mld.log";
 
 getopts('c:d:htn') or ( &printUsage && exit(0) );
 if ($opt_h) {
    &printUsage;
    exit(0);
 }
-$main::MLROOT = "/opt/mail/maillist2";
+$main::MLROOT = $MAILLISTDIR;
 $main::TEST = $opt_t ? $opt_t : 0;
 $main::MLROOT = "/tmp/maillist2" if $main::TEST;
 $main::MLDIR = "${main::MLROOT}/files";
@@ -106,7 +107,7 @@ sub printUsage {
    print "       -n  Non-delivery mode - message processing is done, but the\n";
    print "           final delivery is not done. Useful for testing. \n";
    print "       -c  \"file\" is a config file to use, rather than the \n";
-   print "           default config at /opt/mail/maillist2/mld.conf.\n";
+   print "           default config at $MAILLISTDIR/mld.conf.\n";
    print "\n";
    print "       mld2.pl <-t> <-n> <-c file> message_dir   \n";
    print "           Manually process a single message in the queue.\n";
@@ -204,9 +205,9 @@ sub waitForOpenMldSlot {
       _stdout( "Waiting for open mld slot" ) if $main::TEST;
       sleep(1);
       if ($waitsecs++ == 300) {
-          _sendMail('robert@sfu.ca', 'mld stalled', 'mld has been waiting 5 minutes for an open mld slot.', 'amaint@sfu.ca' );
+          _sendMail('webmailsfu.ca', 'mld stalled', 'mld has been waiting 5 minutes for an open mld slot.', 'amaint@sfu.ca' );
       } elsif ($waitsecs == 600) {
-          _sendMail('robert@sfu.ca', 'mld stalled', 'mld has been waiting 10 minutes for an open mld slot.', 'amaint@sfu.ca' );
+          _sendMail('webmailsfu.ca', 'mld stalled', 'mld has been waiting 10 minutes for an open mld slot.', 'amaint@sfu.ca' );
       }
    }
 }

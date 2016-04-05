@@ -20,6 +20,7 @@ use Getopt::Std;
 # This isn't necessary if these libs get installed in a standard perl lib location
 use FindBin;
 use lib "$FindBin::Bin/../lib";
+use Paths;
 use MLUpdt;
 use MLUtils;
 use LOCK;
@@ -41,7 +42,7 @@ if ($opt_h) {
    &printUsage;
    exit(0);
 }
-$main::MLROOT = "/opt/mail/maillist2";
+$main::MLROOT = $MAILLISTDIR;
 $main::TEST = $opt_t ? $opt_t : 0;
 $main::VERBOSE = $opt_v ? $opt_v : $main::TEST;
 $main::MLROOT = "/tmp/maillist2" if $main::TEST;

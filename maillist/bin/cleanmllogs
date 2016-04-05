@@ -1,4 +1,5 @@
 #!/bin/sh
+# TODO: Extract path from Perl Paths.pm somehow (or convert to Perl)
 cd /opt/mail/maillist2/logs
 /bin/find . -name "*.gz" -mtime +90 -print|/bin/grep '\.[0-9]\{10\}\.gz$'|xargs /bin/rm -f
 /bin/ls|/bin/grep '\.[0-9]\{10\}$'|xargs /bin/gzip

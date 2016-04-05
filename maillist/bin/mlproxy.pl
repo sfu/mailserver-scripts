@@ -16,6 +16,7 @@ use SOAP::Lite ;
 # This isn't necessary if these libs get installed in a standard perl lib location
 use FindBin;
 use lib "$FindBin::Bin/../lib";
+use Paths;
 use MLMail;
 use MLCache;
 use MLRestClient;
@@ -53,6 +54,7 @@ my $client = new MLRestClient($mlrest->{username},$mlrest->{password},0);
 my $info = $client->getMaillistByName( $LISTNAME );
 unless ($info) { print "Not defined\n"; exit(0); }
 
+# TODO: Need to convert from SOAP to REST
 $main::TOKEN = $mlrest->{soapToken};
 my $serviceurl = $mlrest->{soapUrl};
 $main::SERVICE = SOAP::Lite
@@ -283,7 +285,7 @@ sub _sendMailFromTemplate {
 	$msg->set("From",($from)) if $from;
 	$msg->set("Reply-To",($replyto)) if $replyto;
 	my $fh = $msg->open('sendmail');
-	open(TEMPLATE, "/opt/mail/maillist2/templates/$template");
+	open(TEMPLATE, "$MAILLISTDIR/templates/$template");
 	while($text=<TEMPLATE>) {
 		$text =~ s/(\$\w+)/$1/eeg;      
 		print $fh $text;

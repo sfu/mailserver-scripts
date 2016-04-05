@@ -9,13 +9,14 @@
 # This isn't necessary if these libs get installed in a standard perl lib location
 use FindBin;
 use lib "$FindBin::Bin/../lib";
+use Paths;
 use MLUtils;
 select(STDOUT); $| = 1;         # make unbuffered
 
 use constant MAXTIME => 14400; # 4 hours
 
 my ($dev,$ino,$mode,$nl,$uid,$gid,$rdev,$size,$atime,$mtime,$ctime, $bs, $blks) 
-  		= stat("/opt/mail/ml2aliases");
+  		= stat("$MAILDIR/ml2aliases");
 if ((time - $mtime) > MAXTIME) {
   _sendMail('amaint@sfu.ca', 'ml2aliases file warning', 
             "ml2aliases file has not changed in over 4 hours on rm-rstar1", 

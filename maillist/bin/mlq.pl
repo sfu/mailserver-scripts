@@ -9,6 +9,7 @@ require 'getopts.pl';
 # This isn't necessary if these libs get installed in a standard perl lib location
 use FindBin;
 use lib "$FindBin::Bin/../lib";
+use Paths;
 use LOCK;
 use MLCache;
 use MLMail;
@@ -35,12 +36,15 @@ use constant LOCK_UN => 8;
 
 use strict;
 
-my $QFOLDER  = "/opt/mail/maillist2/mlqueue";
+my $QFOLDER  = "$MAILLISTDIR/mlqueue";
 my $maillistname = $ARGV[0];
 my $maxspamlevel = $ARGV[1];
 
 $main::TEST = 0;
 $main::DELIVER = 1;
+
+my $hostname = `hostname -s`;
+chomp $hostname;
 
 openlog "mlq", "pid", "mail";
 syslog("info", "mlq started for $maillistname");
@@ -54,7 +58,7 @@ syslog("info", "No Message-Id header in message") unless $id;
 $id = _genMsgId() unless $id;                # Message-Id not set; create one
 syslog("info", "mlq processing message id %s for $maillistname", $id);
 my $statsd = Net::StatsD::Client->new(host=>'stats.tier2.sfu.ca');
-$statsd->increment('maillist.mlq.receivedMsgs.rm-rstar1');
+$statsd->increment("maillist.mlq.receivedMsgs.$hostname");
 
 my $subject = $headers->get("Subject");
 if (($subject =~ /^Delivery Status Notification/) || ($subject =~ /^NOTICE: mail delivery status/)) {
@@ -179,7 +183,7 @@ sub _sendMail {
       print "body: $body\n";
     }
     if ($main::DELIVER) {
-    	my $sendmail = '/usr/lib/sendmail';
+    	my $sendmail = '/usr/sbin/sendmail';
     	open(MAIL, "|$sendmail -oi -t");
     	print MAIL "From: $from\n";
     	print MAIL "To: $to\n";

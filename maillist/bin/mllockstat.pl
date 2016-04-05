@@ -11,12 +11,13 @@ use Getopt::Std;
 # This isn't necessary if these libs get installed in a standard perl lib location
 use FindBin;
 use lib "$FindBin::Bin/../lib";
+use Paths;
 use MLUtils;
 select(STDOUT); $| = 1;         # make unbuffered
 
 use constant MAXQTIME => 7200;
 
-$main::QUEUEDIR = "/opt/mail/maillist2/mlqueue";
+$main::QUEUEDIR = "$MAILLISTDIR/mlqueue";
 $main::TEST = 0;
 $main::DELIVER = 1;
 
