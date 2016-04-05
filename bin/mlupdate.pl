@@ -16,10 +16,12 @@
 use Socket;
 use SOAP::Lite ;
 use Getopt::Std;
-use lib '/opt/mail/maillist2/lib';
+# Find the lib directory above the location of myself. Should be the same directory I'm in
+# This isn't necessary if these libs get installed in a standard perl lib location
+use FindBin;
+use lib "$FindBin::Bin/../lib";
 use MLUpdt;
 use MLUtils;
-use lib '/opt/mail/maillist2/lib/amaint';
 use LOCK;
 require 'getopts.pl';
 use vars qw($main::MLDIR $main::TOKEN $main::SERVICE $opt_h $opt_a);

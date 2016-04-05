@@ -11,12 +11,14 @@ use FileHandle;
 use Digest::MD5;
 use MIME::Base64;
 use Date::Format;
-use lib '/opt/mail/maillist2/lib';
+# Find the lib directory above the location of myself. Should be the same directory I'm in
+# This isn't necessary if these libs get installed in a standard perl lib location
+use FindBin;
+use lib "$FindBin::Bin/../lib";
 use MLRestMaillist;
 use MLRestMember;
 use MLRestSenderPermission;
 use MLUtils;
-use lib '/opt/mail/maillist2/lib/amaint';
 use LOCK;
 require Exporter;
 @ISA    = qw(Exporter);

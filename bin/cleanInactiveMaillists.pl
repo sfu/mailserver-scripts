@@ -4,16 +4,19 @@
 use Socket;
 use Getopt::Std;
 use LWP;
-use lib '/opt/mail/maillist2/bin';
+# Find the lib directory above the location of myself. Should be the same directory I'm in
+# This isn't necessary if these libs get installed in a standard perl lib location
+use FindBin;
+use lib "$FindBin::Bin/../lib";
 use LOCK;
 use MLUtils;
-use lib '/opt/mail/maillist2/lib/amaint';
 use ICATCredentials;
 #require 'getopts.pl';
 #use vars qw($main::MLDIR $main::TOKEN $main::SERVICE $opt_h $opt_a);
 
 select(STDOUT); $| = 1;         # make unbuffered
 
+# TODO: Make log path relative
 $main::LOGFILE = "/opt/mail/maillist2/logs/mlupdt.log";
 open STDOUT, ">>${main::LOGFILE}" or die "Can't redirect STDOUT";
 open STDERR, ">&STDOUT" or die "Can't dup STDOUT";

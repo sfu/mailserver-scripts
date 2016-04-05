@@ -12,13 +12,14 @@ use Mail::Address;
 use Mail::Send;
 use Digest::MD5;
 use SOAP::Lite ;
-use lib "/opt/mail/maillist2/bin";
+# Find the lib directory above the location of myself. Should be the same directory I'm in
+# This isn't necessary if these libs get installed in a standard perl lib location
+use FindBin;
+use lib "$FindBin::Bin/../lib";
 use MLMail;
 use MLCache;
-use lib '/opt/mail/maillist2/lib';
 use MLRestClient;
 use MLRestMaillist;
-use lib '/opt/mail/maillist2/lib/amaint';
 use ICATCredentials;
 require 'getopts.pl';
 @nul = ('not null','null');

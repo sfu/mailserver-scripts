@@ -1,4 +1,4 @@
-package MLD;
+package MLDtest;
 use Sys::Syslog;
 use Mail::Internet;
 use Mail::Address;
@@ -9,7 +9,10 @@ use Digest::MD5;
 use MIME::Base64;
 use Date::Format;
 use JSON;
-use lib "/opt/mail/maillist2/bin";
+# Find the lib directory above the location of myself. Should be the same directory I'm in
+# This isn't necessary if these libs get installed in a standard perl lib location
+use FindBin;
+use lib "$FindBin::Bin/../lib";
 use LOCK;
 use MLMail;
 use MLCache;
@@ -333,7 +336,7 @@ sub getlistmembers {
     print "deliveryLIst: $content\n" if $main::TEST;
     my @addresses = split "\n", $content;
     if (noRecipientsForList( $listname, $sender, @addresses )) {
-        _logNoRecipients( $listname, $sender, $subject );
+        logNoRecipients( $listname, $sender, $subject );
         return;
     }
         
@@ -762,7 +765,6 @@ sub _logNoRecipients {
     $cleanfrom =~ s/[[:^ascii:]]/\?/g;
     my $detail = _detailJson($id, $cleanfrom, $subject, "No recipients for list");
     _appLog("message ignored", $detail, ["$list","$cleanfrom", "$id", "#mldelivery"]);
-    syslog("warning","Warning: %s message from %s, no recipients for list %s, discarding message",$id,$from,$list);
 }
 
 sub _detailJson {

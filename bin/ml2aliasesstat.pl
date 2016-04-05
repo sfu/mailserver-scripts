@@ -5,7 +5,10 @@
 # This script checks the ml2aliases file to see if it has been changed.
 # If it hasn't been changed in 4 hours it sends a warning.
 #
-use lib '/opt/mail/maillist2/bin';
+# Find the lib directory above the location of myself. Should be the same directory I'm in
+# This isn't necessary if these libs get installed in a standard perl lib location
+use FindBin;
+use lib "$FindBin::Bin/../lib";
 use MLUtils;
 select(STDOUT); $| = 1;         # make unbuffered
 

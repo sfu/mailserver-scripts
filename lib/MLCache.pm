@@ -1,12 +1,15 @@
-package MLCachetest;
+package MLCache;
 
 require Exporter;
 @ISA    = qw(Exporter);
-use lib "/opt/mail/maillist2/bin";
+use DB_File;
+# Find the lib directory above the location of myself. Should be the same directory I'm in
+# This isn't necessary if these libs get installed in a standard perl lib location
+use FindBin;
+use lib "$FindBin::Bin/../lib";
 use LOCK;
 use MLMail;
 use MLUtils;
-use lib "/opt/mail/maillist2/lib";
 use MLUpdt;
 
 # member types
@@ -41,11 +44,11 @@ sub new {
 	}
 	$self->{root} = $root;
 	_stdout("opening "."$root/files/$name/maillist") if $main::TEST;
-	dbmopen %CACHE, "$root/files/$name/maillist", 0660
-		or die "Can't dbmopen $root/files/$name/maillist: $!\n";
+	tie %CACHE, "DB_File", "$root/files/$name/maillist.db", O_RDONLY, 0660
+		or die "Can't dbmopen $root/files/$name/maillist.db: $!\n";
 	my @keys = keys %CACHE;
 	@$self{@keys} = values %CACHE;
-	dbmclose %CACHE;
+	untie %CACHE;
 	return $self;
 }
 

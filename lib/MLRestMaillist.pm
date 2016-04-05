@@ -1,6 +1,9 @@
 package MLRestMaillist;
 use Carp;
-use lib '/opt/mail/maillist2/lib';
+# Find the lib directory above the location of myself. Should be the same directory I'm in
+# This isn't necessary if these libs get installed in a standard perl lib location
+use FindBin;
+use lib "$FindBin::Bin/../lib";
 use MLRestAllowItem;
 use MLRestDenyItem;
 require Exporter;

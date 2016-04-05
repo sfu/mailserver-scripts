@@ -7,7 +7,10 @@
 #
 use Mail::Internet;
 use Getopt::Std;
-use lib '/opt/mail/maillist2/bin';
+# Find the lib directory above the location of myself. Should be the same directory I'm in
+# This isn't necessary if these libs get installed in a standard perl lib location
+use FindBin;
+use lib "$FindBin::Bin/../lib";
 use MLUtils;
 select(STDOUT); $| = 1;         # make unbuffered
 

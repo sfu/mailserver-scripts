@@ -1,7 +1,7 @@
 package MLUtils;
 require Exporter;
 @ISA    = qw(Exporter);
-@EXPORT = qw( _sleep _stdout _stderr _sendMail _altSendMail );
+@EXPORT = qw( _sleep _stdout _stderr _sendMail _altSendMail _sendExtras );
 
 sub _sleep {
     my $time = 900;
@@ -66,4 +66,32 @@ sub _altSendMail {
     	close(MAIL);
     }
 }
+
+sub _sendExtras {
+    my ($to, $subject, $body, $from, %xheaders) = @_;
+    if ($main::TEST) {
+      print "Sending mail:\n";
+      foreach $xhdr (keys %xheaders) {
+          print "$xhdr: ".$xheaders{$xhdr}."\n";
+      }
+      print "to: $to\n";
+      print "from: $from\n";
+      print "subject: $subject\n";
+      print "body: $body\n";
+    }
+    if ($main::DELIVER) {
+        my $sendmail = '/usr/lib/sendmail-vacation';
+        open(MAIL, "|$sendmail -oi -t");
+        print MAIL "Precedence: list\n";
+        foreach $xhdr (keys %xheaders) {
+            print MAIL "$xhdr: ".$xheaders{$xhdr}."\n";
+        }
+        print MAIL "From: $from\n";
+        print MAIL "Reply-To: noreply\@sfu.ca\n";
+        print MAIL "To: $to\n";
+        print MAIL "Subject: $subject\n\n";
+        print MAIL "$body\n";
+        close(MAIL);
+    }
+}    
 
