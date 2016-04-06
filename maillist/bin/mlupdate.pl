@@ -14,7 +14,6 @@
 #       
 
 use Socket;
-use SOAP::Lite ;
 use Getopt::Std;
 # Find the lib directory above the location of myself. Should be the same directory I'm in
 # This isn't necessary if these libs get installed in a standard perl lib location
