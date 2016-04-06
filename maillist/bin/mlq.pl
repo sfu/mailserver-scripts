@@ -15,7 +15,7 @@ use MLCache;
 use MLMail;
 use SFULogMessage;
 use SFUAppLog qw( log );
-use Net::StatsD::Client;
+use Net::Statsd::Client;
 
 use vars qw($main::fromheader);
 select(STDOUT); $| = 1;         # make unbuffered
@@ -57,16 +57,16 @@ $id =~ s/^<|>$//g;
 syslog("info", "No Message-Id header in message") unless $id;
 $id = _genMsgId() unless $id;                # Message-Id not set; create one
 syslog("info", "mlq processing message id %s for $maillistname", $id);
-my $statsd = Net::StatsD::Client->new(host=>'stats.tier2.sfu.ca');
+my $statsd = Net::Statsd::Client->new(host=>'stats.tier2.sfu.ca');
 $statsd->increment("maillist.mlq.receivedMsgs.$hostname");
 
 my $subject = $headers->get("Subject");
-if (($subject =~ /^Delivery Status Notification/) || ($subject =~ /^NOTICE: mail delivery status/)) {
+if (defined($subject) && (($subject =~ /^Delivery Status Notification/) || ($subject =~ /^NOTICE: mail delivery status/))) {
    syslog("info", "Message %s to %s rejected - Delivery Status Notification.", $id, $maillistname);
    closelog();
    exit EX_OK;
 }
-if ( $subject =~ /[[:^ascii:]]/ ) {
+if (defined($subject) &&  $subject =~ /[[:^ascii:]]/ ) {
    syslog("info", "%s Message contains non-ascii characters in subject:", $id);
    $subject = encode('MIME-Q', $subject);
 }
@@ -148,8 +148,12 @@ sub numeric_spamlevel {
 	chomp $spamlevel_hdr;
 	$spamlevel_hdr =~ /Spam-Level (S*)/;
 	my $spamlevel = $1;
-	$spamlevel =~ s/^\s*// if defined $spamlevel;
-	return length($spamlevel);
+ 	if (defined($spamlevel))
+	{
+		$spamlevel =~ s/^\s*//;
+		return length($spamlevel);
+	}
+	return 0;
 }
 
 sub getMsgDirName {
