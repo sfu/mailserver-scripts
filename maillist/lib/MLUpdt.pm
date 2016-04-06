@@ -170,7 +170,7 @@ sub createMLCacheFile {
     
     my $listname = $ml->name();
     mkdir "${main::MLDIR}/$listname" unless -e "${main::MLDIR}/$listname";
-    tie( %maillist, "DB_File","${main::MLDIR/$listname/maillist.db", O_CREAT|O_RDWR,0664,$DB_HASH )
+    tie( %maillist, "DB_File","${main::MLDIR}/$listname/maillist.db", O_CREAT|O_RDWR,0664,$DB_HASH )
           || return cleanReturn("Can't create/open $listname/maillist.db: $!. Can't continue!");
 
     $maillist{activationDate} = $ml->activationDate();
