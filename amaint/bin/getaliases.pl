@@ -147,6 +147,7 @@ foreach $row ( split /\n/, $static ) {
         }
     }
     &process_alias($row) unless $found;
+    print STATIC $row . "\n" unless $found;
     $count++;
 }
 

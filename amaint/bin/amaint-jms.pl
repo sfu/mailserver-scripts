@@ -8,8 +8,12 @@
 # Currently, this is only used to update the Aliases2 map for mail (in /opt/mail)
 # which maps 'user' to 'user@mailhost.sfu.ca'
 #
+# TODO: Also update aliases map from JMS messages
+#
 
-use lib '/opt/amaint/prod/lib';
+use FindBin;
+use lib "$FindBin::Bin/../lib";
+use Paths;
 use Net::Stomp;
 use XML::LibXML;
 use HTTP::Request::Common qw(GET POST PUT DELETE);
@@ -38,7 +42,15 @@ $mqpass = $cred->{'mqpass'};
 $hostname = `hostname -s`;
 chomp $hostname;
 $inqueue = "/queue/ICAT.amaint.to$hostname";
-$mailhost = "connect.sfu.ca";
+
+if ($hostname =~ /pobox/)
+{
+	$mailhost = "mailhost.sfu.ca";
+}
+else
+{
+	$mailhost = "connect.sfu.ca";
+}
 
 $timeout=600;		# Don't wait longer than this to receive a msg. Any longer and we drop, sleep, and reconnect. This helps us recover from Msg Broker problems too
 
@@ -190,8 +202,8 @@ sub process_msg
 
 sub openmaps {
     if (!$OPEN) {
-	tie( %ALIASES, "DB_File","/opt/mail/aliases2.db", O_CREAT|O_RDWR,0644,$DB_HASH )
-  	  || die("Can't open aliases map /opt/mail/aliases2.db. Can't continue!");
+	tie( %ALIASES, "DB_File","$MAILDIR/aliases2.db", O_CREAT|O_RDWR,0644,$DB_HASH )
+  	  || die("Can't open aliases map $MAILDIR/aliases2.db. Can't continue!");
         $OPEN=1;
     }
 }

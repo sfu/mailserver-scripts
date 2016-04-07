@@ -12,13 +12,13 @@
 #
 use Getopt::Std;
 use Sys::Hostname;
-use lib '/opt/amaint/prod/lib';
-use Amaintr;
+use FindBin;
+use lib "$FindBin::Bin/../lib";
+#use Amaintr;
 use Utils;
 use LOCK;
 use ICATCredentials;
 use Paths;
-use lib '/opt/mail/maillist2/lib';
 use MLRestClient;
 use DB_File;
 
@@ -101,7 +101,7 @@ sub process_alias {
 sub cleanexit {
     my ($msg) = @_;
     release_lock($LOCKFILE);
-    unlink "$ALIASMAPNAME.tmp$TS.dir", "$ALIASMAPNAME.tmp$TS.pag";
+    unlink "$ALIASMAPNAME.tmp$TS", "$TMPALIASFILE";
     _stderr($msg);
     exit 1;
 }

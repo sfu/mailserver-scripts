@@ -1,0 +1,132 @@
+#!/usr/local/bin/perl -w
+#
+# destroydir : A program run via inetd to delete home directories
+#             for accounts.
+#
+# Add to inetd.conf as:
+# destroydir       stream tcp nowait  root    /path/to/destroydir destroydir
+# Add to services:
+# destroydir 6071/tcp
+#
+# Rob Urquhart    Mar 13, 2009
+# Changes
+# -------
+
+use Getopt::Std;
+use Socket;
+use lib '/opt/amaint/prod/lib';
+use LOCK;
+use Filesys;
+use Utils;
+
+select(STDOUT);
+$|           = 1;               # make unbuffered
+$SIG{'INT'}  = 'EXITHANDLER';
+$SIG{'HUP'}  = 'EXITHANDLER';
+$SIG{'QUIT'} = 'EXITHANDLER';
+$SIG{'PIPE'} = 'EXITHANDLER';
+$SIG{'ALRM'} = 'EXITHANDLER';
+
+getopts('at') or die("Bad options");
+$main::TEST = $opt_t ? $opt_t : 0;
+
+# untaint the PATH environment variable
+$ENV{PATH} = '/usr/local/bin:/bin:/usr/bin:/usr/sbin';
+
+$main::username = shift @ARGV;
+if ($main::username) {
+
+    # script is being run from command-line with a supplied username.
+    if ($opt_a)
+    {
+    	_stdout("Archiving home dir for ${main::username} from command line");
+        archiveuser($main::username);
+    }
+    _stdout("Deleting home dir for ${main::username} from command line");
+    delete_account_files($main::username) unless $main::TEST;
+    exit 0;
+}
+
+# Only accept connections from the garibaldis
+
+{
+    no warnings 'once';
+    $sockaddr     = 'S n a4 x8';
+    $peersockaddr = getpeername(STDIN);
+    ( $family, $port, $peeraddr ) = unpack( $sockaddr, $peersockaddr );
+
+    # ($a, $b, $c, $d) = unpack('C4', $peeraddr);
+    # $peer = "$a.$b.$c.$d";
+    ( $peername, $aliases, $addrtype, $length, @addrs ) =
+      gethostbyaddr( $peeraddr, AF_INET );
+
+    if (
+        !(
+               $peername =~ /^garibaldi1.nfs.sfu.ca/
+            || $peername =~ /^garibaldi3.tier2.sfu.ca/
+            || $peername =~ /^garibaldi4.tier2.sfu.ca/
+        )
+      )
+    {
+        print "Bye $peername!\n";
+        exit 0;
+    }
+}
+
+# Get the username, archive flag and token from stdin
+
+$line = <>;
+my ( $username, $archive ) = split / /, $line;
+if ( !$username ) {
+    _stdout("No username supplied");
+    exit 0;
+}
+if ( !$archive ) {
+    $archive = 1;    # Set the archive flag to true if not passed in.
+}
+
+$username = lc $username;
+$username =~ s/\s*$//;
+if ( length($username) == 0 ) {
+    _stdout("No username supplied");
+    exit 0;
+}
+
+if ( $username =~ /^([-\w]+)$/ ) {
+    $username = $1;    # untaint username (only contains word chars)
+}
+else {
+    _stdout("Bad data in username: $username");
+    exit 0;
+}
+
+if ( length($username) > 8 ) {
+    _stdout("Bad username: $username");
+    exit 0;
+}
+
+if ( $archive =~ /^([01])$/ ) {
+    $archive = $1;
+}
+else {
+    _stdout("archive flag must be 0 or 1");
+    exit 0;
+}
+
+archiveuser($username) if $archive;
+my $result = 1;
+$result = delete_account_files($username) unless $main::TEST;
+if ($result) {
+    print "ok\n";
+}
+exit 0;
+
+sub cleanexit {
+    my $msg = shift;
+    _stderr($msg);
+    exit 1;
+}
+
+sub EXITHANDLER {
+    cleanexit("Aborted");
+}

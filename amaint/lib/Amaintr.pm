@@ -227,6 +227,18 @@ sub homeDirCreated {
 	return _httpGet($url, TXT);
 }
 
+sub fireImport {
+	my $self = shift;
+
+    unless ($self->{token}) {
+        _stderr("No token");
+        return '';
+    }
+    
+    my $url = "https://amaint.sfu.ca/cgi-bin/WebObjects/Amaint.woa/wa/fireImport?token=" . $self->{token};
+    return _httpGet($url, TXT);
+}
+
 sub fireWarnings {
 	my $self = shift;
 

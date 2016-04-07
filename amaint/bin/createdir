@@ -1,0 +1,231 @@
+#! /usr/local/bin/perl
+#
+# createdir : A program run via inetd to create home directories
+#             for new accounts.
+#
+# Add to inetd.conf as:
+# createdir       stream tcp nowait  root    /path/to/createdir createdir
+# Add to services:
+# createdir 6081/tcp
+#
+# Rob Urquhart    Feb 8, 2002
+# Changes
+# -------
+# Use SOAP to get account attributes rather than db access.  2007/10/04 RAU
+#       Use Amaintr.pm module instead of SOAP                2013/05/15 RAU
+# Allow connection from behind load balancer                 2015/06/03 RAU
+
+use Socket;
+use File::Copy;
+use lib '/opt/amaint/prod/lib';
+use Paths;
+use Amaintr;
+use Utils;
+use LOCK;
+use ICATCredentials;
+use Filesys;
+
+select(STDOUT);
+$|           = 1;               # make unbuffered
+$SIG{'INT'}  = 'EXITHANDLER';
+$SIG{'HUP'}  = 'EXITHANDLER';
+$SIG{'QUIT'} = 'EXITHANDLER';
+$SIG{'PIPE'} = 'EXITHANDLER';
+$SIG{'ALRM'} = 'EXITHANDLER';
+
+# The following variables define NIS and other locations.
+$LOCKFILE = "$LOCKDIR/create.lock";
+$PROTODIR = "/home/proto";
+
+# Only accept connections from seymour and garibaldi
+
+$sockaddr     = 'S n a4 x8';
+$peersockaddr = getpeername(STDIN);
+my ( $family, $port, $peeraddr ) = unpack( $sockaddr, $peersockaddr );
+my ( $a, $b, $c, $d ) = unpack( 'C4', $peeraddr );
+my $peer = "$a.$b.$c.$d";
+my ( $peername, $aliases, $addrtype, $length, @addrs ) =
+  gethostbyaddr( $peeraddr, AF_INET );
+
+if (
+    !(
+           $peername =~ /^garibaldi.nfs.sfu.ca/
+        || $peername =~ /^garibaldi1.nfs.sfu.ca/
+        || $peername =~ /^garibaldi2.nfs.sfu.ca/
+        || $peername =~ /^garibaldi3.tier2.sfu.ca/
+        || $peername =~ /^load-balancer.sfu.ca/
+        || $peername =~ /^rm-rstar1.sfu.ca/
+    )
+  )
+{
+    print "Bye $peername!\n";
+    exit 0;
+}
+
+print "ok\n";
+
+my $cred  = new ICATCredentials('amaint.json')->credentialForName('amaint');
+my $TOKEN = $cred->{'token'};
+
+exit(0) if lockInUse($LOCKFILE);
+acquire_lock($LOCKFILE);
+my $accountsActivated = 0;
+
+# Get the list of "pending create" accounts
+
+$main::amaintr = new Amaintr( $TOKEN, $main::TEST );
+$result = $main::amaintr->getUsernamesWithStatus('pending create');
+if ( ( "ARRAY" ne ref $result ) && $result =~ /^err / ) {
+    cleanexit($result);
+}
+if ( "ARRAY" ne ref $result ) {
+    cleanexit("getUsernamesWithStatus did not return an array");
+}
+
+foreach $user (@$result) {
+
+    # Get the passwd file information from the account maintenance database.
+
+    #print "Calling getAttributes for $user\n";
+    my $accountRef = $main::amaintr->getAttributes($user);
+    if ( $accountRef =~ /^err / ) {
+        _stderr($accountRef);
+        next;
+    }
+
+    if ( $accountRef->{'status'} eq 'pending create' ) {
+        my $physhome = $accountRef->{'physHomeDir'};
+        $physhome =~ s/ *$//;
+
+        #print "Calling createaccount for $physhome\n";
+        if (
+            createaccount( $user, $physhome,
+                           $accountRef->{'uid'}, $accountRef->{'gid'})
+          ) {
+              #print "Calling updateStatus\n";
+              $accountsActivated += 1 if updateStatus($user);
+        }
+        else {
+            _fail("Error occurred creating home directory for $user.\n");
+        }
+    }
+}
+release_lock($LOCKFILE);
+&updateQuotas if $accountsActivated;
+exit 0;
+
+#
+#       Local subroutines
+#
+
+#
+# Build the home directory for an id
+#
+
+sub createaccount {
+    my ( $user, $physhome, $uid, $gid ) = @_;
+    $homedir = "/home/" . $user;
+    unlink($homedir);
+    if ( -e $physhome ) {
+        recursive_delete($physhome);
+    }
+
+    if ( !makedir( $physhome, 0711, $uid, $gid ) ) {
+        _fail("Couldn't make dir $physhome.\n");
+        return 0;
+    }
+
+    if ( symlink( $physhome, $homedir ) != 1 ) {
+        _fail("Couldn't symlink to $physhome.\n");
+        return 0;
+    }
+
+    if ( !makedir( $physhome . "/pub_html", 0755, $uid, $gid ) ) {
+        _fail("Couldn't make dir $physhome/pub_html.\n");
+        return 0;
+    }
+
+    if ( !makedir( $physhome . "/.elm", 0700, $uid, $gid ) ) {
+        _fail("Couldn't make dir $physhome/.elm.\n");
+        return 0;
+    }
+
+    if ( !copyfile( ".cshrc", $PROTODIR, $homedir, $uid, $gid ) ) {
+        _fail("Couldn't make file $physhome/.cshrc.\n");
+        return 0;
+    }
+
+    if ( !copyfile( ".login", $PROTODIR, $homedir, $uid, $gid ) ) {
+        _fail("Couldn't make file $physhome/.login.\n");
+        return 0;
+    }
+
+    if ( !copyfile( ".logout", $PROTODIR, $homedir, $uid, $gid ) ) {
+        _fail("Couldn't make file $physhome/.logout.\n");
+        return 0;
+    }
+
+    if ( !copyfile( ".exrc", $PROTODIR, $homedir, $uid, $gid ) ) {
+        _fail("Couldn't make file $physhome/.exrc.\n");
+        return 0;
+    }
+
+    _cleanUpInbox($user);
+    return 1;
+}
+
+sub updateStatus {
+    my ($user) = shift;
+
+    my $res = $main::amaintr->homeDirCreated($user);
+    if ( $res =~ /^err / ) {
+        _fail("Status update failed:$res");
+        return 0;
+    }
+    return 1;
+}
+
+sub updateQuotas {
+    #
+    # Wait 5 minutes to make sure the nis maps are updated.
+    # Then build the quotas.
+    #
+    sleep 300;
+    my @out = `/opt/amaint/prod/bin/getquotas.pl`;
+    my $count = grep /not updated/, @out;
+    if ( $count > 0 ) {
+        my $msg = join '\n', @out;
+        sendmsg( "amaint\@sfu.ca", "Quota update problem", $msg );
+    }
+}
+
+sub _fail {
+    my ($msg) = @_;
+    sendmsg( "amaint\@sfu.ca", "Home dir creation failed", $msg );
+}
+
+sub _cleanUpInbox {
+    my ($user) = @_;
+    my $first  = substr( $user, 0, 1 );
+    my $second = substr( $user, 1, 1 );
+    unlink("/var/mail/$first/$second/$user");
+}
+
+sub sendmsg() {
+    my ( $to, $subject, $contents ) = @_;
+    open( MAIL, "|/usr/ucb/mail -n -s \"$subject\" $to" );
+    print MAIL $contents . "\n";
+    close MAIL;
+}
+
+sub cleanexit {
+    my $msg = shift;
+    _stderr($msg);
+    release_lock($LOCKFILE);
+    exit 1;
+}
+
+sub EXITHANDLER {
+    print "Aborted.\n";
+    &cleanexit;
+}
