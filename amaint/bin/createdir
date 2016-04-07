@@ -1,4 +1,4 @@
-#! /usr/local/bin/perl
+#!/usr/bin/perl
 #
 # createdir : A program run via inetd to create home directories
 #             for new accounts.
@@ -17,7 +17,8 @@
 
 use Socket;
 use File::Copy;
-use lib '/opt/amaint/prod/lib';
+use FindBin::Bin;
+use lib "$FindBin::Bin/../lib";
 use Paths;
 use Amaintr;
 use Utils;
@@ -49,10 +50,7 @@ my ( $peername, $aliases, $addrtype, $length, @addrs ) =
 
 if (
     !(
-           $peername =~ /^garibaldi.nfs.sfu.ca/
-        || $peername =~ /^garibaldi1.nfs.sfu.ca/
-        || $peername =~ /^garibaldi2.nfs.sfu.ca/
-        || $peername =~ /^garibaldi3.tier2.sfu.ca/
+           $peername =~ /^garibaldi/
         || $peername =~ /^load-balancer.sfu.ca/
         || $peername =~ /^rm-rstar1.sfu.ca/
     )
@@ -170,7 +168,6 @@ sub createaccount {
         return 0;
     }
 
-    _cleanUpInbox($user);
     return 1;
 }
 
@@ -191,7 +188,8 @@ sub updateQuotas {
     # Then build the quotas.
     #
     sleep 300;
-    my @out = `/opt/amaint/prod/bin/getquotas.pl`;
+    my $script = $FindBin::Bin."/getquotas.pl";
+    my @out = `$script`;
     my $count = grep /not updated/, @out;
     if ( $count > 0 ) {
         my $msg = join '\n', @out;
@@ -204,16 +202,9 @@ sub _fail {
     sendmsg( "amaint\@sfu.ca", "Home dir creation failed", $msg );
 }
 
-sub _cleanUpInbox {
-    my ($user) = @_;
-    my $first  = substr( $user, 0, 1 );
-    my $second = substr( $user, 1, 1 );
-    unlink("/var/mail/$first/$second/$user");
-}
-
 sub sendmsg() {
     my ( $to, $subject, $contents ) = @_;
-    open( MAIL, "|/usr/ucb/mail -n -s \"$subject\" $to" );
+    open( MAIL, "|/usr/bin/mail -n -s \"$subject\" $to" );
     print MAIL $contents . "\n";
     close MAIL;
 }

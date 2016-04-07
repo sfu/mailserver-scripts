@@ -1,4 +1,4 @@
-#!/usr/local/bin/perl
+#!/usr/bin/perl
 # updtpb.pl : A program which updates the phonebook data in the Amaint db.
 #             It reads raw phone data from stdin, in the format produced by 
 #             the Call Data Report (CDR) system. (See updatePhonebook.sh script).
@@ -15,29 +15,41 @@
 # -------
 #   Use Amaintr.pm module. Moved to ~/prod/bin              2013/05/15 RU
 #
+# Note, this script doesn't have to run on a mailserver. It was just historically
+# run here but could be moved
 
 use Getopt::Std;
 use XML::Simple;
+use Sys::Hostname;
 use LWP;
+use FindBin;
+use lib "$FindBin::Bin/../lib";
+use ICATCredentials;
 
+my $hostname = hostname();
 $THEFILE = "$LOCKERDIR/locker.0";
 #
 # THis token contains a wildcard ip
 #
-$main::TOKEN = '3w2SzeyZ5JfWQBnKsJ.3lNsOVU1XsTuFv8t0.YdTUvPuUl6df3e6Ig';
+my $cred  = new ICATCredentials('amaint.json')->credentialForName('amaint');
+$main::TOKEN = $cred->{'token'};
 #
-# This token contains rm-rstar's ip address 142.58.101.21
-#
-#$main::TOKEN = '6cGsP45MXre4NY5gcDKMkISgIszbsUeGaKQJFtc7zHpzxYfgB1Abng';
 #
 # Service url for testing
 #
 #$main::SERVICEURL = "https://mystage.sfu.ca/cgi-bin/WebObjects/praetorian.woa/ws/soaphandler";
 #$main::SERVICEURL = "http://icat-rob-macpro.its.sfu.ca/cgi-bin/WebObjects/praetorian.woa/-55099/wa/updatePhonebook?token=".$main::TOKEN;
+
+# By default, use the staging Amaint
+$main::SERVICEURL = "https://stage.its.sfu.ca/cgi-bin/WebObjects/AmaintRest.woa/wa/updatePhonebook?token=".$main::TOKEN;
 #
 # Service url for prod
 #
-$main::SERVICEURL = "https://amaint.sfu.ca/cgi-bin/WebObjects/AmaintRest.woa/wa/updatePhonebook?token=".$main::TOKEN;
+if ($hostname =~ /mailgw1.sfu.ca/)
+{
+	$main::SERVICEURL = "https://amaint.sfu.ca/cgi-bin/WebObjects/AmaintRest.woa/wa/updatePhonebook?token=".$main::TOKEN;
+}
+
 use constant AC       => '778';
 use constant OLDXC1   => '291';
 use constant OLDXC2   => '268';
