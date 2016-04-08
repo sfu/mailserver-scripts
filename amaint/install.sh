@@ -4,6 +4,7 @@
 export PERL_MM_USE_DEFAULT=1
 export PERL_EXTUTILS_AUTOINSTALL="--defaultdeps"
 
+perl -MCPAN -e 'install Test::Deep'
 perl -MCPAN -e 'install Net::Stomp'
 perl -MCPAN -e 'install XML::LibXML'
 perl -MCPAN -e 'install XML::Simple'
