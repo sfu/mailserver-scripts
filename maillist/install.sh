@@ -10,3 +10,5 @@ perl -MCPAN -e 'install Net::Statsd::Client'
 # Need to edit mlq.pl and mlproxy.pl and insert path to libs, or figure out how to calculate it
 #
 # Place symlinks to mlq.pl and mlproxy.pl in /etc/smrsh
+#
+# TODO: Copy scripts from /usr/local/bin on mailgw into repo if we need them
