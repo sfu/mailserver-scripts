@@ -10,7 +10,8 @@
 
 use Getopt::Std;
 use File::Copy;
-use lib '/opt/amaint/prod/lib';
+use FindBin;
+use lib "$FindBin::Bin/../lib";
 use Paths;
 use Amaintr;
 use Utils;
@@ -53,7 +54,8 @@ exit 0 if $main::TEST;
 
 # Update the quota file
 
-@out = `/opt/amaint/prod/bin/getquotas.pl`;
+my $script = "$FindBin::Bin/getquotas.pl";
+@out = `$script`;
 $count = grep /not updated/, @out;
 if ( $count > 0 ) {
     print @out;

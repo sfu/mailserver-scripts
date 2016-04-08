@@ -14,7 +14,8 @@
 
 use LWP::UserAgent;
 use Getopt::Std;
-use lib '/opt/amaint/prod/lib';
+use FindBin;
+use lib "$FindBin::Bin/../lib";
 use Amaintr;
 use ICATCredentials;
 

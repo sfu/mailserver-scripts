@@ -48,11 +48,13 @@
 #
 # Use Amaintr.pm module instead of SOAP                     2013/05/15 RAU
 #
+# TODO: Move logfile path into Paths.pm
 
 use Getopt::Std;
 use POSIX qw(strftime);
 use IO::Socket;
-use lib '/opt/amaint/prod/lib';
+use FindBin;
+use lib "$FindBin::Bin/../lib";
 use Paths;
 use Amaintr;
 use Utils;

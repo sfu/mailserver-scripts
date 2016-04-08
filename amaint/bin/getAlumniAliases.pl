@@ -12,7 +12,7 @@
 use Getopt::Std;
 use LWP::Simple;
 use DB_File;
-use FastBin::Bin;
+use FastBin;
 use lib "$FastBin::Bin/../lib";
 use LOCK;
 use ICATCredentials;

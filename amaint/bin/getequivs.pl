@@ -18,7 +18,8 @@
 #
 
 use Getopt::Std;
-use lib '/opt/amaint/prod/lib';
+use FindBin;
+use lib "$FindBin::Bin/../lib";
 use Paths;
 use Utils;
 use LOCK;

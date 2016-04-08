@@ -14,7 +14,8 @@
 
 use Getopt::Std;
 use Socket;
-use lib '/opt/amaint/prod/lib';
+use FindBin;
+use lib "$FindBin::Bin/../lib";
 use LOCK;
 use Filesys;
 use Utils;

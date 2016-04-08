@@ -15,11 +15,13 @@
 # Only add users who are in the passwd map.                      2007/10/17 RAU
 #  Use Amaintr.pm module instead of SOAP                         2013/05/15 RAU
 #
+# TODO: Is this script still needed? If so, needs path cleanup
 
 use Getopt::Std;
 use POSIX qw(ceil);
 use File::Copy;
-use lib '/opt/amaint/prod/lib';
+use FindBin;
+use lib "$FindBin::Bin/../lib";
 use Amaintr;
 use Utils;
 use LOCK;

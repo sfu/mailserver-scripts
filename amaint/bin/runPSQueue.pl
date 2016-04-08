@@ -9,7 +9,8 @@
 #   Use Amaintr.pm module. Moved to ~/prod/bin              2013/05/15 RU
 #       
 
-use lib '/opt/amaint/prod/lib';
+use FindBin;
+use lib "$FindBin::Bin/../lib";
 use Amaintr;
 use ICATCredentials;
 

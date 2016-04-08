@@ -1,6 +1,6 @@
-#!/usr/local/bin/perl
-
-use lib '/opt/amaint/prod/lib';
+#!/usr/bin/perl
+use FindBin;
+use lib "$FindBin::Bin/../lib";
 use Amaintr;
 use Utils;
 use ICATCredentials;
