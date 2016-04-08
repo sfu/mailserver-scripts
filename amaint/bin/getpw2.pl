@@ -26,7 +26,7 @@
 use Getopt::Std;
 use Sys::Hostname;
 use DB_File;
-use FindBin::Bin;
+use FindBin;
 use lib "$FindBin::Bin/../lib";
 use Paths;
 use Amaintr;
