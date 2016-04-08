@@ -1,6 +1,6 @@
-#!/usr/local/bin/perl
+#!/usr/bin/perl
 #
-use lib '/opt/mail/maillist2/bin';
+use lib '../../lib';
 use MLMail;
 use MLCachetest;
 select(STDOUT); $| = 1;         # make unbuffered

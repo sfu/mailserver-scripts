@@ -1,6 +1,6 @@
-#!/usr/local/bin/perl
+#!/usr/bin/perl
 #
-use lib '/opt/mail/maillist2/bin';
+use lib '../../lib';
 use MLD;
 use MLMail;
 use MLCache;

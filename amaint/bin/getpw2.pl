@@ -51,16 +51,19 @@ $LOCKFILE = "$LOCKDIR/passwd.lock";
 $ALIASFILE = "$MAILDIR/aliases2";
 $TMPALIASFILE = "$ALIASFILE.new";
 $MINCOUNT = 50000;
+$EXCLUDES = "wiki|admin|spam.ui5gzd9xy|ham.uzqsnwwk|test1|majordom|maillist|alumhelp"  ;        # Accounts that shouldn't be put into aliases map for Connect
 use constant SHELL => "/bin/sh";
 
 # Target mail host for users
 # If we're running on mailgw1/2, it's Connect. If we're on a mailgate (pobox) node, it's "mailhost.sfu.ca" (which points to mailgw1/2)
 # And if we're on the staging server, point at email-stage
 $mailhost = "connect.sfu.ca";
+$INTERNAL=1;  # running on an internal mail router
 my $hostname = hostname();
 if ($hostname =~ /^pobox/)
 {
     $mailhost = "mailhost.sfu.ca";
+    $INTERNAL=0;
 }
 elseif ($hostname =~ /stage\.its\.sfu\.ca/)
 {
@@ -111,6 +114,11 @@ foreach $line (split /\n/,$passwd) {
         ($username, $pw, $uid, $gid, $gcos, $homedir, $shell) = split /:/,$line;
         print "$username:$pw:$uid:$gid:$gcos:$homedir:$shell\n" if $main::TEST;
         my $found = 0;
+	if ($INTERNAL)
+	{
+	    # Certain accounts don't get forwarded to Connect.sfu.ca, even though they're full accounts
+	    next if ($username =~ /^($EXCLUDES)$/);
+	}
         foreach $block(@blocks) {
                 if ($username eq $block) {
                         $found = 1;

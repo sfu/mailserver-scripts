@@ -1,8 +1,11 @@
-#!/usr/local/bin/perl
+#!/usr/bin/perl
+#
+# Compare a maillist's delivery list as stored on the current mail server
+# with what's in the Maillist app database. Pass in list name as first argument
 #
 use LWP::UserAgent;
 use URI::Escape;
-use lib '/opt/mail/maillist2/bin';
+use lib '../../lib';
 use MLD;
 use MLMail;
 use MLCache;

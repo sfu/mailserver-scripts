@@ -1,0 +1,8 @@
+Apr 8/2016
+
+Leaving these test scripts here for now, but the preferred method of testing now
+will be to deploy code to mailgw-stage server and test full delivery. From there,
+SFU recipients will receive mail in email-stage.sfu.ca environment and external
+users' mail will be trapped by proofpoint-stage.its.sfu.ca and stored in 
+outbound quarantine.
+

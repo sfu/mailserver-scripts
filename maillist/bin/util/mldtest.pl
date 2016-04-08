@@ -1,6 +1,8 @@
-#!/usr/local/bin/perl
+#!/usr/bin/perl
 #
-use lib '/opt/mail/maillist2/bin';
+# Run through test delivery. Doesn't actual deliver message but does output lots of debug output
+# Use mlqtest.pl to create a test queued message, then pass in the name of the temp queue dir created in /tmp/mlqueue as the first argument
+use lib '../../lib';
 use MLDtest;
 use MLMail;
 use MLCachetest;
@@ -14,6 +16,8 @@ $main::QUEUEDIR='/tmp/mlqueue';
 $dir = shift @ARGV;
 
 processMessage( $dir );
+
+
 #$maillist = new MLCachetest($listname);
 #print "allowedToSend: ".$maillist->allowedToSend($address)."\n";
 #exit 0 unless $maillist->allowedToSend($address) eq 'SEND';

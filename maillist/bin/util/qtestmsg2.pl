@@ -1,5 +1,5 @@
-#!/usr/local/bin/perl -w
-open( MSG, "|/opt/mail/maillist2/bin/util/mlqtest.pl ic-info 3.5" );
+#!/usr/bin/perl -w
+open( MSG, "|./mlqtest.pl ic-info 3.5" );
     print MSG "From robert Fri May 15 15:26:54 2001\n".
 "Return-Path: <robert\@sfu.ca>\n".
 "Message-Id: 119823457912384\n".

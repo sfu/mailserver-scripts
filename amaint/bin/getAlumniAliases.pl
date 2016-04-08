@@ -1,4 +1,4 @@
-#! /usr/local/bin/perl
+#!/usr/bin/perl
 #
 # getAlumniAliases.pl: A program to create an aliases map for alumni addresses.
 #
@@ -11,7 +11,9 @@
 
 use Getopt::Std;
 use LWP::Simple;
-use lib '/opt/amaint/prod/lib';
+use DB_File;
+use FastBin::Bin;
+use lib "$FastBin::Bin/../lib";
 use LOCK;
 use ICATCredentials;
 use Paths;
@@ -24,7 +26,7 @@ $SIG{'QUIT'} = 'EXITHANDLER';
 $SIG{'PIPE'} = 'EXITHANDLER';
 $SIG{'ALRM'} = 'EXITHANDLER';
 
-$ALIASMAPNAME = "$ALIASESDIR/alumnialiases";
+$ALIASMAPNAME = "$ALIASESDIR/alumnialiases.db";
 $ALIASFILE    = "$ALIASESDIR/alumnialiases";
 $TMPALIASFILE = "$ALIASFILE.new";
 $LOCKFILE     = "$ALIASESDIR/alumnialiases.lock";
@@ -50,11 +52,13 @@ open( ALIASESSRC, ">$TMPALIASFILE" )
   || die "Can't open alumnialiases source file: ${TMPALIASFILE}.\n\n";
 
 # Clean out any existing temporary YP map.
-unlink "$ALIASMAPNAME.tmp.dir", "$ALIASMAPNAME.tmp.pag";
+unlink "$ALIASMAPNAME.tmp";
 
 # Open the temporary maps.
-dbmopen( %ALIASES, "$ALIASMAPNAME.tmp", 0644 )
+tie( %ALIASES, "DB_File","$ALIASMAPNAME.tmp", O_CREAT|O_RDWR,0644,$DB_HASH )
   || die "Can't open aliases map $ALIASMAPNAME.tmp.";
+
+
 
 $modtime = sprintf( "%010d", time );
 $ALIASES{"YP_LAST_MODIFIED"} = $modtime;
@@ -72,17 +76,16 @@ foreach $row ( split /\n/, $aldata ) {
 }
 
 close(ALIASESSRC);
-dbmclose(%ALIASES);
+untie(%ALIASES);
 
 &cleanexit('test run exiting') if $main::TEST;
 
 my ($dev,$inode,$mode,$nlink,$uid,$gid,$rdev,
     $size,$atime,$mtime,$ctime,$blksize,$blocks) = stat($TMPALIASFILE);
-cleanexit("$ALIASFILE < low water mark: $size") if $size < 900000;
+cleanexit("$TMPALIASFILE < low water mark: $size") if $size < 900000;
 
 # Move the temporary maps and files to their permanent places.
-open( JUNK, "mv $ALIASMAPNAME.tmp.dir $ALIASMAPNAME.dir|" );
-open( JUNK, "mv $ALIASMAPNAME.tmp.pag $ALIASMAPNAME.pag|" );
+open( JUNK, "mv $ALIASMAPNAME.tmp $ALIASMAPNAME|" );
 open( JUNK, "mv $TMPALIASFILE $ALIASFILE|" );
 
 release_lock($LOCKFILE);
@@ -108,7 +111,7 @@ sub process_alias {
 
 sub cleanexit {
     my $msg = shift;
-    print STDERR $msg;
+    _stderr($msg);
     release_lock($LOCKFILE);
     exit 1;
 }
@@ -116,3 +119,10 @@ sub cleanexit {
 sub EXITHANDLER {
     &cleanexit("Aborted");
 }
+
+sub _stderr($) {
+    my ($line) = @_;
+
+    print STDERR scalar localtime() . " $line\n";
+}
+

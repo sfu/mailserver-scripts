@@ -1,5 +1,4 @@
 package MLUpdtt;
-use SOAP::Lite ;
 use Sys::Syslog;
 use Mail::Internet;
 use Mail::Address;
@@ -9,9 +8,12 @@ use FileHandle;
 use Digest::MD5;
 use MIME::Base64;
 use Date::Format;
-use lib '/opt/mail/maillist2/bin';
+use DB_File;
+# Find the lib directory above the location of myself. Should be the same directory I'm in
+# This isn't necessary if these libs get installed in a standard perl lib location
+use FindBin;
+use lib "$FindBin::Bin/../../lib";
 use LOCK;
-use lib '/opt/mail/maillist2/lib';
 use MLRestClient;
 use MLRestMaillist;
 use MLRestMember;
@@ -46,7 +48,10 @@ sub updateMaillistFiles {
       release_lock( $MLUpdt::LOCK );
       return 1;
     }
-    
+
+   # Ensure umask is set to allow world-readable files - SHillman May 8/2014
+   my $oldumask = umask(0002);
+
     #
     # Timestamps didn't match, so update files for this list
     #
@@ -58,9 +63,15 @@ sub updateMaillistFiles {
     #
     unless (isManualList($listname)) {
       my @members = $ml->members();
+      return cleanReturn("rest client returned undef members") unless @members;
+      if ($ml->memberCount() != scalar @members) {
+        unlink ${main::MLDIR}."/$listname/ts";
+        return cleanReturn("rest client could not fetch members for $listname");
+      }
       open(MEMBERS,">${main::MLDIR}/$listname/members");
       flock MEMBERS, LOCK_EX;
       foreach $member (@members) {
+         next unless defined $member;
          my $copyonsend = $member->copyOnSend() eq 'true' ? 1 : 0;
          my $manager = $member->manager() eq 'true' ? 1 : 0;
          my $deliver = $member->deliver() eq 'true' ? 1 : 0;
@@ -103,6 +114,9 @@ sub updateMaillistFiles {
     flock TS, LOCK_EX;
     print TS $ml->lastChangeDateString()."\n";
     close TS;
+
+   # Restore old umask
+   umask($oldumask);
     
 	release_lock( $MLUpdt::LOCK );
 	return 1;
@@ -119,9 +133,9 @@ sub updateAllMaillists {
 	foreach $ml (@$LISTS) {
 		my $listname = $ml->name();
 		if ($ml->lastChange() ne localTimestamp($listname)) {
-			_stdout( "\nupdateAllMaillists: Updating $listname" );
-			updateMaillistFiles( $listname ) if $listname eq 'ic-info';
-			_stdout( "\nupdateAllMaillists: Finished updating $listname" );
+			_stdout( "updateAllMaillists: Updating $listname" );
+ 			updateMaillistFiles( $listname ) if $listname eq 'ic-info';
+			_stdout( "updateAllMaillists: Finished updating $listname" );
 			sleep 1;
 		}
 	}
@@ -156,7 +170,8 @@ sub createMLCacheFile {
     
     my $listname = $ml->name();
     mkdir "${main::MLDIR}/$listname" unless -e "${main::MLDIR}/$listname";
-	dbmopen(%maillist,"${main::MLDIR}/$listname/maillist",0664) or return cleanReturn( "can't open cache: $!" );
+    tie( %maillist, "DB_File","${main::MLDIR}/$listname/maillist.db", O_CREAT|O_RDWR,0664,$DB_HASH )
+          || return cleanReturn("Can't create/open $listname/maillist.db: $!. Can't continue!");
 
     $maillist{activationDate} = $ml->activationDate();
     $maillist{allowedToSubscribeByEmail} = ($ml->allowedToSubscribeByEmail() eq 'true') ? 1 : 0;
@@ -164,7 +179,7 @@ sub createMLCacheFile {
     $maillist{createDate} = $ml->createDate();
     $maillist{defaultDeliver} = ($ml->defaultDeliver() eq 'true') ? 1 : 0;
     $maillist{defer} = ($ml->defer() eq 'true') ? 1 : 0;
-    $maillist{deferReason} = $ml->deferReason();
+#    $maillist{deferReason} = $ml->deferReason();
     $maillist{deliverySuspended} = ($ml->deliverySuspended() eq 'true') ? 1 : 0;
     $maillist{desc} = $ml->desc();
     $maillist{disableUnsubscribe} = ($ml->disableUnsubscribe() eq 'true') ? 1 : 0;
@@ -203,7 +218,7 @@ sub createMLCacheFile {
     $maillist{type} = $ml->type();
     $maillist{unauthHandlingCode} = $ml->unauthHandlingCode();
     
-	dbmclose %maillist;
+    untie(%maillist);
 }
 
 sub localTimestamp {

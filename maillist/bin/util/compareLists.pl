@@ -1,8 +1,11 @@
-#!/usr/local/bin/perl
+#!/usr/bin/perl
+#
+# Compare the delivery list of one or more maillists. Listnames are input on STDIN, one per line
+# Recipient list as stored on the current mail server is compared against what's in the Maillist App
 #
 use LWP::UserAgent;
 use URI::Escape;
-use lib '/opt/mail/maillist2/bin';
+use lib '../../lib';
 use MLD;
 use MLMail;
 use MLCache;

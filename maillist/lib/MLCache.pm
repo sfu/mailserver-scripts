@@ -46,7 +46,7 @@ sub new {
 	$self->{root} = $root;
 	_stdout("opening "."$root/files/$name/maillist") if $main::TEST;
 	tie %CACHE, "DB_File", "$root/files/$name/maillist.db", O_RDONLY, 0660
-		or die "Can't dbmopen $root/files/$name/maillist.db: $!\n";
+		or die "Can't open $root/files/$name/maillist.db: $!\n";
 	my @keys = keys %CACHE;
 	@$self{@keys} = values %CACHE;
 	untie %CACHE;
