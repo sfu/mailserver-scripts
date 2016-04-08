@@ -21,15 +21,18 @@
 #   	Use SOAP calls instead of direct db access            2007/10/11 RAU
 #   	Use Amaintr.pm module. Moved to ~/prod/bin              2013/05/15 RU
 #	Linux support: Convert from dbm to DB_file, change filenames	2014/01/15 SH
+#	Modified to work universally on any core mailserver	2016/04/07 SH
 
 use Getopt::Std;
-use lib '/opt/amaint/prod/lib';
+use Sys::Hostname;
+use DB_File;
+use FindBin::Bin;
+use lib "$FindBin::Bin/../lib";
 use Paths;
 use Amaintr;
 use Utils;
 use LOCK;
 use ICATCredentials;
-use DB_File;
 
 @nul = ('not null','null');
 select(STDOUT); $| = 1;         # make unbuffered
@@ -42,15 +45,27 @@ $SIG{'ALRM'} = 'EXITHANDLER';
 getopts('t') or die("Bad options");
 $main::TEST = $opt_t ? $opt_t : 0;
 
-# The following variables define NIS and other locations.
-$mailhost = "connect.sfu.ca";
-$YPDIR = "/opt/mail";
-$YPDIR = "/tmp" if $main::TEST;
-$BLOCKFILE = "$YPDIR/blockfile";
+$MAILDIR = "/tmp" if $main::TEST;
+$BLOCKFILE = "$MAILDIR/blockfile";
 $LOCKFILE = "$LOCKDIR/passwd.lock";             
-$ALIASFILE = "$YPDIR/aliases2";
+$ALIASFILE = "$MAILDIR/aliases2";
 $TMPALIASFILE = "$ALIASFILE.new";
+$MINCOUNT = 50000;
 use constant SHELL => "/bin/sh";
+
+# Target mail host for users
+# If we're running on mailgw1/2, it's Connect. If we're on a mailgate (pobox) node, it's "mailhost.sfu.ca" (which points to mailgw1/2)
+# And if we're on the staging server, point at email-stage
+$mailhost = "connect.sfu.ca";
+my $hostname = hostname();
+if ($hostname =~ /^pobox/)
+{
+    $mailhost = "mailhost.sfu.ca";
+}
+elseif ($hostname =~ /stage\.its\.sfu\.ca/)
+{
+    $mailhost = "email-stage.sfu.ca";
+}
 
 exit(0) if lockInUse( $LOCKFILE );
 acquire_lock( $LOCKFILE );
@@ -72,14 +87,14 @@ if (open (BLOCK, "$BLOCKFILE"))
 }
 
 # Clean out any existing temporary aliases map.
-unlink "$YPDIR/aliases2.tmp.dir","$YPDIR/aliases2.tmp.pag", $TMPALIASFILE;
+unlink "$MAILDIR/aliases2.tmp", $TMPALIASFILE;
 
 # Get the passwd file information from the account maintenance database.
 my $passwd = $amaintr->getPW();
 
 # Open the temporary maps.
-tie( %ALIASES, "DB_File","$YPDIR/aliases2.tmp", O_CREAT|O_RDWR,0644,$DB_HASH )
-  || die "Can't open aliases map $YPDIR/aliases2.tmp.";
+tie( %ALIASES, "DB_File","$MAILDIR/aliases2.tmp", O_CREAT|O_RDWR,0644,$DB_HASH )
+  || die "Can't open aliases map $MAILDIR/aliases2.tmp.";
 
 
 open( ALIASESSRC, ">$TMPALIASFILE" ) || die "Can't open aliases source file: ${TMPALIASFILE}.\n\n";
@@ -114,8 +129,11 @@ untie (%ALIASES);
 
 &cleanexit if $main::TEST;  # For debugging
 
+cleanexit("New aliases2 file < low water mark: $count") if $count < $MINCOUNT;
+
+
 # Move the temporary maps to their permanent places.
-open(JUNK, "mv $YPDIR/aliases2.tmp $YPDIR/aliases2.db|" );
+open(JUNK, "mv $MAILDIR/aliases2.tmp $MAILDIR/aliases2.db|" );
 open(JUNK, "mv $TMPALIASFILE $ALIASFILE|" );
 
 release_lock( $LOCKFILE );

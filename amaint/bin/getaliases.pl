@@ -25,15 +25,19 @@
 #       Use SOAP service to get alias data.                     2007/10/11 RAU
 #       Use Amaintr.pm module. Moved to ~/prod/bin              2013/05/15 RU
 #	Convert dbm to DB_File for Linux			2014/01/14 SH
+#
+#	Now one script for both mailgate and core server	2016/04/07 SH
 
 use Getopt::Std;
-use lib '/opt/amaint/prod/lib';
+use DB_File;
+use Sys::Hostname;
+use FindBin::Bin;
+use lib "$FindBin::Bin/../lib";
 use Amaintr;
 use Utils;
 use LOCK;
 use ICATCredentials;
 use Paths;
-use DB_File;
 
 select(STDOUT);
 $|           = 1;               # make unbuffered
@@ -51,12 +55,19 @@ $TMPSTATICFILE      = "$STATICFILE.new";
 $SINGLEIDALIASES    = "$ALIASESDIR/singleid_aliases";
 $LIGHTWEIGHTALIASES = "$ALIASESDIR/lightweightaliases";
 $BLOCKFILE          = "$ALIASESDIR/blockfile";
-$LOCKFILE           = "/opt/adm/amaintlocks/aliases.lock";
+$LOCKFILE           = "$LOCKDIR/aliases.lock";
 $MINCOUNT           = 173000;
 if ($main::TEST) {
     $ALIASMAPNAME = "/tmp/aliases";
     $ALIASFILE    = "/tmp/aliases";
     $TMPALIASFILE = "/tmp/aliases.new";
+}
+
+$hostname = hostname();
+$MAILHOST = undef;
+if ($hostname =~ /^pobox/)
+{
+	$MAILHOST = "mailhost.sfu.ca";
 }
 
 getopts('t') or die("Bad options");
@@ -146,8 +157,18 @@ foreach $row ( split /\n/, $static ) {
             last;
         }
     }
-    &process_alias($row) unless $found;
-    print STATIC $row . "\n" unless $found;
+    $count++;
+    next if $found;
+    if (defined($MAILHOST))
+    {
+	&process_alias("$alias: $alias\@$MAILHOST");
+	print STATIC "$alias: $alias\@$MAILHOST\n";
+    }
+    else
+    {
+    	&process_alias($row);
+    	print STATIC $row . "\n";
+    }
     $count++;
 }
 
@@ -161,7 +182,15 @@ if (length($users)<500000) {
     cleanexit("Result from getAliases less than low water mark");
 }
 foreach $row ( split /\n/, $users ) {
-    &process_alias($row);
+    my ( $alias, $target ) = split /:/, $row;
+    if (defined($MAILHOST))
+    {
+	&process_alias("$alias: $alias\@$MAILHOST");
+    }
+    else
+    {
+    	&process_alias($row);
+    }
     $count++;
 }
 
