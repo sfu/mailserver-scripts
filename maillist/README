@@ -1,0 +1,29 @@
+This directory contains files used by the maillist delivery scripts. 
+It is intended to be deployed to /opt/mail/maillist2
+
+mld.conf - Config file which is read by mld.pl. (See file for description
+           of config items.)
+
+mld.pid  - mld.pl writes its process id in this file when it starts up.
+
+mlqueue/ - Directory where messages sent to mailing lists are queued for 
+           delivery. The /opt/bin/mlq.pl script writes the messages in this
+           directory (one subdirectory per message), and the mld.pl script
+           reads this directory and delivers, then deletes, each message.
+
+files/   - Cached maillist info. Each maillist has a subdirectory, containing
+           files with maillist attributes, members, and allowed/denied senders.
+           Maintianed by the mlupdate.pl script.
+
+bin/     - Maillist scripts and perl modules. (See bin/README for description.)
+
+templates/  - Email templates used by the /opt/bin/mlproxy.pl script.
+
+logs/    - Directory where log files for mld.pl and mlupdate.pl are kept.
+
+         mld.log  - STDOUT and STDERR for mld.pl. Normal messages related to message
+                    processing is written to syslog. This log contains messages related
+                    to the running of the mld.pl script itself.
+
+         mlupdt.log - STDOUT and STDERR for mlupdate.pl.
+

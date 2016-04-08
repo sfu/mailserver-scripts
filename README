@@ -1,29 +1,13 @@
-This directory contains files used by the maillist delivery scripts. 
-It is intended to be deployed to /opt/mail/maillist2
+Scripts for Mail server management
+ - maillists: all scripts related to maillist delivery, including the actual delivery code
+      as well as the scripts that keep the maillist membership files up to date.
+ - amaint: scripts to fetch data from Amaint to keep mail server Aliases db files up to date
 
-mld.conf - Config file which is read by mld.pl. (See file for description
-           of config items.)
+This git repo can be run from wherever it's installed, but ensure the paths in lib/Paths.pm has
+the correct paths for where data is to be stored. These must agree with where Sendmail looks
+for aliases and where cron entries point for scripts that are run at regular intervals
 
-mld.pid  - mld.pl writes its process id in this file when it starts up.
+It is recommended that you keep the git repo separate from the data store. E.g.
 
-mlqueue/ - Directory where messages sent to mailing lists are queued for 
-           delivery. The /opt/bin/mlq.pl script writes the messages in this
-           directory (one subdirectory per message), and the mld.pl script
-           reads this directory and delivers, then deletes, each message.
-
-files/   - Cached maillist info. Each maillist has a subdirectory, containing
-           files with maillist attributes, members, and allowed/denied senders.
-           Maintianed by the mlupdate.pl script.
-
-bin/     - Maillist scripts and perl modules. (See bin/README for description.)
-
-templates/  - Email templates used by the /opt/bin/mlproxy.pl script.
-
-logs/    - Directory where log files for mld.pl and mlupdate.pl are kept.
-
-         mld.log  - STDOUT and STDERR for mld.pl. Normal messages related to message
-                    processing is written to syslog. This log contains messages related
-                    to the running of the mld.pl script itself.
-
-         mlupdt.log - STDOUT and STDERR for mlupdate.pl.
-
+/opt/amaint - this git repo
+/opt/mail - root for mail data, including aliases files. Maillist data would then go in /opt/mail/maillist2

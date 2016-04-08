@@ -1,17 +1,12 @@
 package Paths;
 use Exporter ();
 @ISA    = qw(Exporter);
-@EXPORT = qw($LOCKERDIR $LOCKDIR $ETCDIR $BINDIR $MAILDIR $YPDIR $YPSRCDIR $YPMASTER $YPPUSHCMD $ALIASESDIR $CREDDIR);
+@EXPORT = qw($LOCKERDIR $LOCKDIR $ETCDIR $MAILDIR $YPMASTER $ALIASESDIR $CREDDIR);
 $YPMASTER = "rm-rstar1.sfu.ca";
-$YPPUSHCMD = "/usr/lib/netsvc/yp/yppush";
 $LOCKERDIR="/opt/adm/amaint";
 $LOCKDIR="/opt/adm/amaintlocks";
 $ETCDIR="/opt/amaint/etc";
-$BINDIR="/opt/amaint/prod/bin";
-$LIBDIR="/opt/amaint/prod/lib";
 $PUBBINDIR="/opt/bin";
 $MAILDIR="/opt/mail";
 $ALIASESDIR="/opt/mail";
-$YPDIR="/opt/mail";
-$YPSRCDIR="/var/yp/src";
 $CREDDIR="/usr/local/credentials/";
