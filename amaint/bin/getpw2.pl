@@ -65,7 +65,7 @@ if ($hostname =~ /^pobox/)
     $mailhost = "mailhost.sfu.ca";
     $INTERNAL=0;
 }
-elseif ($hostname =~ /stage\.its\.sfu\.ca/)
+elsif ($hostname =~ /stage\.its\.sfu\.ca/)
 {
     $mailhost = "email-stage.sfu.ca";
 }
