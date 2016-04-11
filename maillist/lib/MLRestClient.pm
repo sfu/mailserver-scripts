@@ -703,3 +703,6 @@ sub _newHashRef {
     $hash{'address'} = $address;
     return \%hash;
 }
+
+sub DESTROY {}
+

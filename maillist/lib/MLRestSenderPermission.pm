@@ -66,3 +66,5 @@ sub toString {
     return $str;
 }
 
+sub DESTROY {}
+

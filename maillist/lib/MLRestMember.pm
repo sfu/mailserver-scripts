@@ -78,3 +78,6 @@ sub toString {
     $str .= "\n";
     return $str;
 }
+
+sub DESTROY {}
+
