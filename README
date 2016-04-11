@@ -1,7 +1,7 @@
 Scripts for Mail server management
- - maillists: all scripts related to maillist delivery, including the actual delivery code
+ - maillist: all scripts related to maillist delivery, including the actual delivery code
       as well as the scripts that keep the maillist membership files up to date.
- - amaint: scripts to fetch data from Amaint to keep mail server Aliases db files up to date
+ - bin: scripts to fetch data from Amaint to keep mail server Aliases db files up to date
 
 This git repo can be run from wherever it's installed, but ensure the paths in lib/Paths.pm has
 the correct paths for where data is to be stored. These must agree with where Sendmail looks
