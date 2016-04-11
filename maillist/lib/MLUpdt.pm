@@ -137,7 +137,6 @@ sub updateAllMaillists {
 			_stdout( "updateAllMaillists: Updating $listname" );
 			updateMaillistFiles( $listname );
 			_stdout( "updateAllMaillists: Finished updating $listname" );
-			sleep 1;
 		}
 		# Force Rest client to get a new auth token if our session is getting old
 		if (time() > $start+3000)
