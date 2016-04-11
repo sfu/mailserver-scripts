@@ -20,7 +20,7 @@ sub init {
 
     $self->{name}    = $name;
     $self->{credDir} = $dir;
-    $self->{credDir} = $REDDIR unless $dir;
+    $self->{credDir} = $CREDDIR unless $dir;
     my $credfile = $self->{credDir} . $name;
     print( "credfile is " . $credfile ) if $main::TEST;
     local $/;
