@@ -126,6 +126,7 @@ sub updateAllMaillists {
     my $ml = '';
     my $client = restClient();
     return cleanReturn("restClient() returned undef") unless defined $client;
+    my $start = time();
     
     my $LISTS = $client->getMaillistSummary();
     return cleanReturn("getMaillistSummary() returned undef") 
@@ -137,6 +138,12 @@ sub updateAllMaillists {
 			updateMaillistFiles( $listname );
 			_stdout( "updateAllMaillists: Finished updating $listname" );
 			sleep 1;
+		}
+		# Force Rest client to get a new auth token if our session is getting old
+		if (time() > $start+3000)
+		{
+			$MLUpdt::restClient = undef if (time() > $start+3000);
+			$start = time();
 		}
 	}
 }
