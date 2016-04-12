@@ -1,0 +1,19 @@
+# default: on
+# From Solaris inetd.conf: quarantined     stream  tcp     nowait  root    /usr/local/bin/quarantine_d     quarantine_d
+# This service listens for requests from the quarantine client. This allows the client to
+# run as a non-root user yet still view quarantined messages in Sendmail's queues
+#
+# Requires a service name entry in /etc/services with name 'quarantine', which defines the listening port
+#
+service quarantine
+{
+       	flags           = REUSE
+        socket_type     = stream        
+       	wait            = no
+        user            = root
+	group		= root
+       	server          = /opt/amaint/mail/quarantine_d
+       	log_on_failure  += USERID
+        disable         = no
+	only_from       = 10.2.0.0 127.0.0.1 ::1
+}

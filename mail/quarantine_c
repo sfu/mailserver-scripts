@@ -1,0 +1,123 @@
+#!/usr/bin/perl
+#
+# This script manages the Sendmail Quarantine queue and whitelist
+# The queue is used by the rate limiting milter, which flags messages
+# for quarantine if the sender sends to too many non-sfu recipients in
+# a day. 
+
+use Getopt::Std;
+use IO::Socket::INET;
+use Sys::Hostname;
+
+$hostname = hostname();
+# Strip the number and trailing domain from hostname
+$hostname =~ s/\d\..*//;
+
+sub usage()
+{
+    print <<EOF;
+Usage:
+   quarantine [-q]                - View the quarantine queue
+   quarantine -w [-a|-d  address] - View or manage the whitelist (must be root)
+   quarantine -v Message-ID       - View a quarantined message
+   quarantine -d regex            - Delete messages from the quarantine queue
+   quarantine -r[I|S|R] identifier  - Release message(s) that match the (I)dentifier, (S)ender, or (R)ecipient
+              -2		  - add the "-2" flag to carry out any of the above operations on both rm-rstar1 & 2 as well as localhost
+
+
+EOF
+}
+
+
+    my (%opts);
+    $root = 0;
+    # Get options
+    getopts("adqvw2r:",\%opts);
+
+    $root = 1 if (`id` =~ /uid=0\(root\)/);
+
+
+    if ($opts{q})
+    {
+	$result = sendsock("queuebb");
+	print $result;
+	exit 0;
+	
+    }
+    elsif ($opts{v})
+    {
+	# View a quarantined message
+	$qid = $ARGV[0];
+	$result = sendsock("view $qid");
+	print $result;
+	exit 0;
+    }
+    elsif ($opts{d})
+    {
+	# Delete messages from quarantine matching regex
+	$regex = $ARGV[0];
+	$result = sendsock("delete $regex");
+	print $result;
+	exit 0;
+    }
+    elsif ($opts{r})
+    {
+	# Release a message (take it out of quarantine allowing it to be delivered)
+	$type = $opts{r};
+	if ($type !~ /^[IRS]$/)
+	{
+		print "Type must be one of I, R or S. E.g. -rS\n";
+		exit 0;
+	}
+	$qid = $ARGV[0];
+	$result = sendsock("release$type $qid");
+	print $result;
+	exit 0;
+    }
+
+
+    if (!$root)
+    {
+	goto NOTROOT;
+    }
+    elsif ($opts{w})
+    {
+	# Process Whitelist
+	if ($opts{a} || $opts{d})
+	{
+	    # Add or delete an entry
+	    $entry = $ARGV[0];
+	    $ad = ($opts{a}) ? "a" : "d";
+	    system("ssh antibody4.nfs.sfu.ca whitelist -$ad \"$entry\"");
+	    system("ssh antibody5.nfs.sfu.ca whitelist -$ad \"$entry\"");
+	}
+	# Just display the current whitelist
+	system("ssh antibody4.nfs.sfu.ca whitelist");
+	exit 0;
+    }
+NOTROOT:
+	$result = sendsock("queue");
+	print $result;
+	usage();
+
+    exit 0;
+
+sub sendsock()
+{
+	$out = shift;
+	my $host = 1;
+  	$host = 2 if ($opts{2});
+	@res = ();
+
+	foreach $myhost (1..$host)
+	{
+		$sock = IO::Socket::INET->new("$hostname$myhost.tier2.sfu.ca:6090");
+		$junk = <$sock>;	# wait for "ok" prompt
+		print $sock "$out\n";
+		@res2 = <$sock>;
+		push @res, @res2;
+		close $sock;
+	}
+
+	return join("",@res);
+}

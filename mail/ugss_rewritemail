@@ -1,0 +1,67 @@
+#!/usr/bin/perl
+#
+# This script handles anonymizing messages sent to students for
+# an annual survey. A separate process generates a list of random
+# numbers, one per recipient, and the ugss_surveydb file is 
+# populated with the number-to-email mapping. Messages are then
+# sent to ugss_survey+<randomNumber> which this script receives
+# and forwards on to the corresponding email address
+#
+# See George Lee (glee@sfu.ca) for the process that generates the
+# number-to-email mapping
+
+use DB_File ;
+
+# All 3 files below must be read/writable by user that sendmail runs scripts as ('mail' on Linux)
+my $nsseSurveyDB = '/opt/mail/ugss/ugss_surveydb' ;
+my $nsseLog = '/opt/mail/ugss/ugss.log';
+my $mailCopy = '/opt/mail/ugss/ugss-survey-outgoing.txt' ;
+
+my $tempDir = '/tmp/' ;
+
+my $currentTS = time() ;
+
+my $randNum = int( rand( 10000 ) ) ;
+
+my $tempFile = $tempDir . $currentTS . "-" . $randNum ;
+
+my %aliases ;
+
+open ( LOG, ">>$nsseLog" ) ;
+open ( FH, ">>$mailCopy") ;
+
+print LOG "opened log file " . scalar localtime() . "\n" ;
+
+tie %aliases,DB_Hash,"$nsseSurveyDB",O_RDONLY,0666 ;
+
+my $mailx = $tempFile ;
+
+open (MAILX, ">$mailx") ;
+
+while ( <> ) {
+        if ( $_ =~ "To:\ ugss_survey\+" ) {
+                my $alias = $_ ;
+                $alias =~ /To:\ ugss_survey\+([0-9]+)\@sfu\.ca/ ;
+		$matchAlias = $1 ;
+		if ( $aliases{$matchAlias} ) {
+	                print LOG scalar localtime() . "\t-\t $matchAlias - sent to $aliases{$matchAlias} \n" ;
+	       	        print MAILX "To: $aliases{$matchAlias}\n" ;
+	                print FH "To: $aliases{$matchAlias}\n";
+		} else {
+			print LOG scalar localtime() . "\tERROR\t $matchAlias does not map, sending to nobody\n" ;
+			print MAILX 'To: nobody@sfu.ca' . "\n" ;
+			print FH 'To: nobody@sfu.ca' . "\n" ;
+		}
+        } else {
+                print FH $_ ;
+                print MAILX $_ ;
+        }
+}
+close ( FH ) ;
+close (MAILX) ;
+`cat $mailx | /usr/sbin/sendmail -t` ;
+unlink( $mailx ) ;
+
+untie %aliases ;
+close ( LOG ) ;
+

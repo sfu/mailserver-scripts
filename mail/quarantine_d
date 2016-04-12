@@ -1,0 +1,152 @@
+#!/usr/bin/perl
+#
+# This script manages the Sendmail Quarantine queue and whitelist
+# The queue is used by the rate limiting milter, which flags messages
+# for quarantine if the sender sends to too many non-sfu recipients in
+# a day. 
+
+use Socket;
+use Getopt::Std;
+
+# Only accept connections from seymour and garibaldi
+
+$| = 1;
+$sockaddr = 'S n a4 x8';
+$peersockaddr = getpeername(STDIN);
+($family, $port, $peeraddr) = unpack($sockaddr, $peersockaddr);
+($a, $b, $c, $d) = unpack('C4', $peeraddr);
+$peer = "$a.$b.$c.$d";
+($peername, $aliases, $addrtype, $length, @addrs) = gethostbyaddr($peeraddr, AF_INET);
+
+if (!( $peername =~ /^hatzic.tier2.sfu.ca/ || 
+       $peername =~ /^garibaldi(1|2|3|4).tier2.sfu.ca/ ||
+	# Steve's desktop, for testing:
+       $peername =~ /^d142-058-003-221.burnaby.sfu.ca/ ||
+       $peername =~ /^pobox(1|2).tier2.sfu.ca/ ||
+       $peername =~ /^mailgw(1|2).tier2.sfu.ca/ ||
+       $peername =~ /^rm-rstar(1|2).tier2.sfu.ca/ )) { 
+    print "Bye $peername!\n";
+    exit 0; 
+} 
+
+print "ok\n";
+
+$cmd = <>;
+$cmd =~ s/[\r\n]+//;
+
+
+    # Human-readable queue summary
+    if ($cmd eq "queue")
+    {
+	$result = `mailq -qQ`;
+	print $result;
+	exit 0;
+    }
+
+    # Summary for Xymon/big Brother
+    # First line is number of quarantine'd msgs
+    # If non-zero, include summary of users, msgs, recipients, subjects
+    if ($cmd =~ "^queuebb")
+    {
+	$view = 0;
+	if ($cmd =~ /^queuebb -v (.*)$/)
+	{
+	    $view = $1;
+	}
+	@qfiles = `find /var/spool/mqueue -name "hf*" -print`;
+	$total = @qfiles;
+	print "$total\n";
+	if ($total)
+	{
+	    foreach $qf (@qfiles)
+	    {
+		$qf =~ m/\/hf(.+)$/;
+		$qid = $1;
+		push(@qids, $qid);
+		open(QF,$qf);
+		@lines = <QF>;
+		close QF;
+		foreach $l (@lines)
+		{
+		    chomp;
+		    if ($l =~ /^r/)
+		    {
+		    	$recips{$qid}++;
+		    }
+		    elsif ($l =~ /\$_(.*)/)
+		    {
+			$hosts{$1} .= "$qid:";
+		    }
+		    elsif ($l =~ /X-Authenticated-User: (.*)/)
+		    {
+			$qid{$1} .= "$qid:";
+		    }
+		    elsif ($l =~ /Subject: (.*)/)
+		    {
+			$subject{$qid} = $1;
+		    }
+		}
+	    }
+
+	    # Summarize results
+	    print "Unique SFUConnect users seen:\n" if (!$view);
+	    foreach $user (keys %qid)
+	    {
+		@msgs = split(/:/,$qid{$user});
+		if ($view) { 
+		    next if ($user ne $view); 
+		    $qid = $msgs[0];
+		    system("find /var/spool/mqueue -name hf$qid -exec cat '{}' \\;; find /var/spool/mqueue -name df$qid -exec cat '{}' \\;");
+		    exit 0;
+		}
+		$count = @msgs;
+		$recips = 0;
+		foreach (@msgs) { $recips += $recips{$_}; }
+		print "Sender: $user\tMsgs: $count\tRecipients: $recips\n";
+		print "  Sample: $msgs[0]\n";
+		print "  Subject: ",$subject{$msgs[0]},"\n";
+	    }
+
+	    print "Unique hosts seen:\n";
+	    foreach $host (keys %hosts)
+	    {
+		@msgs = split(/:/,$hosts{$host});
+		$count = @msgs;
+		$recips = 0;
+		foreach (@msgs) { $recips += $recips{$_}; }
+		print "Host: $host\tMsgs: $count\tRecipients: $recips\n";
+		print "  Sample: $msgs[0]\n";
+		print "  Subject: ",$subject{$msgs[0]},"\n";
+	    }
+	}
+	exit 0;
+    }
+
+    if ($cmd =~ /^view ([\w\d]+)$/)
+    {
+    	# View a quarantined message
+	$qid = $1;
+	system("find /var/spool/mqueue -name hf$qid -exec cat '{}' \\;; find /var/spool/mqueue -name df$qid -exec cat '{}' \\;");
+	exit 0;
+    }
+
+    if ($cmd =~ /^delete (.*)$/)
+    {
+	$regex = $1;
+	system("/usr/local/etc/cleanqueue -q \"$regex\"");
+	exit 0;
+    }
+
+    if ($cmd =~ /^release([IRS]) (.*)$/)
+    {
+	$what = $2;
+	$type = $1;
+	system("/usr/sbin/sendmail -qQ -Q -q$type$what");
+	exit 0;
+    }
+
+
+
+    print "unknown command: $cmd\n";
+    exit 0;
+

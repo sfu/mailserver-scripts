@@ -1,0 +1,4 @@
+# SFU additions
+buildmlalias    6086/tcp                # Maillist2 alias creation
+mlupdate        6087/tcp                # Maillist2 file update
+quarantine      6090/tcp                # Mail Quarantine daemon

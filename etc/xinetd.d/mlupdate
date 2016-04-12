@@ -1,0 +1,15 @@
+# default: on
+# From Solaris inetd.conf: mlupdate        stream  tcp     nowait  amaint  /opt/mail/maillist2/bin/mlupdate.pl     mlupdate.pl
+# This service listens for requests from the Maillist app to watch for list changes
+service mlupdate
+{
+       	flags           = REUSE
+        socket_type     = stream        
+       	wait            = no
+        user            = amaint
+	group		= amaint
+       	server          = /opt/amaint/maillist/bin/mlupdate.pl
+       	log_on_failure  += USERID
+        disable         = no
+	only_from       = 10.2.0.0 127.0.0.1 ::1
+}

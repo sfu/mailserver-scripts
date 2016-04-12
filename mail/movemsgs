@@ -1,0 +1,18 @@
+#!/bin/csh
+# Move msgs from the main sendmail queue to one of two 'holding' queues.
+# A 'deferred' queue handles messages that can be retried quickly
+# A 'timeout' queue handles messages that take a long time to retry
+
+foreach qdir (q00 q01 q02 q03 q04 q05 q06 q07 q08 q09)
+cd /var/spool/mqueue/${qdir}
+/usr/local/bin/qtool.pl -e '$msg{message} =~ /Deferred: (4|Connection refused)/' /var/spool/mqueue/qdeferred .
+/usr/local/bin/qtool.pl -e '$msg{message} =~ /(Deferred: Connection timed|host map:)/' /var/spool/mqueue/qtimeout .
+# While we're here, clean old bounce msgs out before they become double-bounces (no one reads them anyway)
+/usr/local/bin/qtool.pl -e '($msg{sender} =~ /MAILER-DAEMON/ && $msg{creation_time} < (time()-300000))' -d .
+end
+#
+# Clean double-bounces from deferred and timeout queues (300,000 seconds is a little less than 4 days)
+cd /var/spool/mqueue/qdeferred
+/usr/local/bin/qtool.pl -e '($msg{sender} =~ /MAILER-DAEMON/ && $msg{creation_time} < (time()-300000))' -d .
+cd /var/spool/mqueue/qtimeout
+/usr/local/bin/qtool.pl -e '($msg{sender} =~ /MAILER-DAEMON/ && $msg{creation_time} < (time()-300000))' -d .

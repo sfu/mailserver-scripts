@@ -1,0 +1,76 @@
+#!/usr/bin/perl
+#
+# This program will search the Sendmail queue for messages with a certain
+# string in the headers and nuke the two files (header & body) associated
+# with the message
+
+$quar = 0;
+$badstring = shift;
+
+if ($badstring eq "-q")
+{
+	$quar = 1;
+	$badstring = shift;
+}
+
+if (!defined($badstring) || $badstring eq "")
+{
+	print "Usage: cleanqueue [-q] \"bad string\"\n";
+	exit 1;
+}
+$spool_dir = "/var/spool/mqueue";		# The mail spool directory.
+
+opendir(DIR,"$spool_dir") || die "Cannot open mail spool $spool_dir, stopped";
+foreach $dir (readdir(DIR))		# get all queue dirs
+{
+#    if ($quar)
+#    {
+#	next if ($dir =~ /^(qdeferred|qtimeout)/);
+#    }
+    next if ($dir =~ /^\./);
+    opendir(SUBDIR,"$spool_dir/$dir") || die "Cannot open mail spool $spool_dir/$dir, stopped";
+    if ($quar)
+    {
+    	@files = grep(/^hf/, readdir(SUBDIR));		# Get all queue files
+    }
+    else
+    {
+    	@files = grep(/^qf/, readdir(SUBDIR));		# Get all queue files
+    }
+    closedir(DIR);					# Close mail spool directory.
+
+    FILE:
+    foreach $one_file (@files) {			# Process each file.
+     $found = 0;
+     open(QF,"$spool_dir/$dir/$one_file");		# 
+     if (QF)
+     {
+	    @lines = <QF>;				# Suck in the file (just headers, it'll be small)
+	    foreach $line (@lines)			# search every line for the bad string
+	    {
+	        if ($line =~ /$badstring/)
+	        {
+    print $line;
+		    $found = 1;
+		    last;
+	        }
+	    }
+	    close QF;
+     }
+     next if (!$found);				# Didn't find the string, skip to next queue file
+
+     unlink("$spool_dir/$dir/$one_file");
+     print "unlink($spool_dir/$dir/$one_file)\n";
+     if ($quar)
+     {
+     	$one_file =~ s/hf/df/;
+     }
+     else
+     {
+     	$one_file =~ s/qf/df/;
+     }
+     unlink("$spool_dir/$dir/$one_file");
+     print "unlink($spool_dir/$dir/$one_file)\n";
+    }
+}
+
