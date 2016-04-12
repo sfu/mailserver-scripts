@@ -1,16 +1,21 @@
-#!/usr/local/bin/perl -w
+#!/usr/bin/perl -w
 use Sys::Syslog;
 use Mail::Internet;
 use MIME::Base64;
+use JSON;
 use Encode qw/encode decode/;
 require 'getopts.pl';
-use lib '/opt/mail/maillist2/bin';
+# Find the lib directory above the location of myself. Should be the same directory I'm in
+# This isn't necessary if these libs get installed in a standard perl lib location
+use FindBin;
+use lib "$FindBin::Bin/../../lib";
+use Paths;
 use LOCK;
-use lib '/opt/mail/maillist2/bin/test';
 use MLCache;
 use MLMail;
 use SFULogMessage;
 use SFUAppLog qw( log );
+use Net::Statsd::Client;
 
 use vars qw($main::fromheader);
 select(STDOUT); $| = 1;         # make unbuffered
@@ -29,21 +34,23 @@ use constant LOCK_EX => 2;
 use constant LOCK_NB => 4;
 use constant LOCK_UN => 8;
 
-#$QFOLDER  = "/opt/mail/maillist2/mlqueue";
+use strict;
+
 $main::MLROOT = "/tmp/maillist2";
 $QFOLDER  = $main::MLROOT."/mlqueue";
-
-$maillistname = $ARGV[0];
-$maxspamlevel = $ARGV[1];
+my $maillistname = $ARGV[0];
+my $maxspamlevel = $ARGV[1];
 
 $main::TEST = 1;
 $main::DELIVER = 0;
 
-openlog "mlqtest", "pid", "mail";
-syslog("info", "mlqtest started for $maillistname");
-syslog("info", "mlqtest max spam level for $maillistname is $maxspamlevel");
-my $msg  = Mail::Internet->new( STDIN );
-$msg->print();
+my $hostname = `hostname -s`;
+chomp $hostname;
+
+openlog "mlq", "pid", "mail";
+syslog("info", "mlq started for $maillistname");
+syslog("info", "mlq max spam level for $maillistname is $maxspamlevel");
+my $msg  = Mail::Internet->new( \*STDIN );
 my $headers = $msg->head();
 my $id = $headers->get("Message-Id");
 chomp $id;
@@ -51,20 +58,22 @@ $id =~ s/^<|>$//g;
 syslog("info", "No Message-Id header in message") unless $id;
 $id = _genMsgId() unless $id;                # Message-Id not set; create one
 syslog("info", "mlq processing message id %s for $maillistname", $id);
+my $statsd = Net::Statsd::Client->new(host=>'stats.tier2.sfu.ca');
+$statsd->increment("maillist.mlq.receivedMsgs.$hostname");
+
 my $subject = $headers->get("Subject");
-if (($subject =~ /^Delivery Status Notification/) || ($subject =~ /^NOTICE: mail delivery status/)) {
+if (defined($subject) && (($subject =~ /^Delivery Status Notification/) || ($subject =~ /^NOTICE: mail delivery status/))) {
    syslog("info", "Message %s to %s rejected - Delivery Status Notification.", $id, $maillistname);
    closelog();
    exit EX_OK;
 }
-if ( $subject =~ /[[:^ascii:]]/ ) {
+if (defined($subject) &&  $subject =~ /[[:^ascii:]]/ ) {
    syslog("info", "%s Message contains non-ascii characters in subject:", $id);
    $subject = encode('MIME-Q', $subject);
 }
-printf("\nMessage subject: %s\n", $subject) if $main::TEST;
-   
+
 my $fromheader = $headers->get("From") unless $fromheader;
-chomp $fromheader;
+chomp $fromheader if ($fromheader);
 unless ($fromheader) {
    syslog("info", "Message %s to %s rejected - missing From header.", $id, $maillistname);
    closelog();
@@ -72,11 +81,11 @@ unless ($fromheader) {
 }
 syslog("info", "Message %s to %s from %s", $id, $maillistname, $fromheader);
 
-my $mlinfo = new MLCache($maillistname, $main::MLROOT);
+my $mlinfo = new MLCache($maillistname);
 
 my $spamlevel = 0;
 my $barracudascore = $headers->get("X-Barracuda-Spam-Score");
-chomp $barracudascore;
+chomp $barracudascore if $barracudascore;
 if ($barracudascore) {
    $spamlevel = $barracudascore;
 } else {
@@ -117,6 +126,7 @@ if (!-e "$QFOLDER/$dir") {
     $msg->print($main::MSG);                 
     close $main::MSG;
     syslog("info", "Added message %s to maillist queue: %s", $id, $dir);
+    # Create the addrs file
 }
 # put maillist name in 'addrs' file
 open $main::ADDRS, ">>$QFOLDER/$dir/addrs";
@@ -139,8 +149,12 @@ sub numeric_spamlevel {
 	chomp $spamlevel_hdr;
 	$spamlevel_hdr =~ /Spam-Level (S*)/;
 	my $spamlevel = $1;
-	$spamlevel =~ s/^\s*//;
-	return length($spamlevel);
+ 	if (defined($spamlevel))
+	{
+		$spamlevel =~ s/^\s*//;
+		return length($spamlevel);
+	}
+	return 0;
 }
 
 sub getMsgDirName {
@@ -174,7 +188,7 @@ sub _sendMail {
       print "body: $body\n";
     }
     if ($main::DELIVER) {
-    	my $sendmail = '/usr/lib/sendmail';
+    	my $sendmail = '/usr/sbin/sendmail';
     	open(MAIL, "|$sendmail -oi -t");
     	print MAIL "From: $from\n";
     	print MAIL "To: $to\n";
@@ -184,15 +198,49 @@ sub _sendMail {
     }
 }
 
+sub _detailJson {
+    my ($msgId, $from, $subject, $info) = @_;
+    my %headers = ();
+    $headers{from} = $from;
+    $headers{subject} = $subject;
+    my %detail = ();
+    $detail{msgId} = $msgId;
+    $detail{headers} = \%headers;
+    $detail{info} = $info;
+    return encode_json \%detail;
+}
+
 sub _appLog {
     my ($maillistname, $fromheader, $id, $subject) = @_;
-    my $from = ((Mail::Address->parse($fromheader))[0])->address();
-    my $canonicalAddress = MLMail::canonicalAddress($fromheader);
+    my $canonicalAddress;
+    my $from = ((Mail::Address->parse($fromheader))[0])->address() if defined $fromheader;
+    #
+    # If the from address contains non-ascii chars
+    # MIME-Q encode it.
+    #
+    if ( $from =~ /[[:^ascii:]]/ ) {
+        $from = encode('MIME-Q', $from);
+        $canonicalAddress = $from;
+    } else {
+        $canonicalAddress = MLMail::canonicalAddress($fromheader);
+    }
+    #
+    # remove newline chars from subject
+    #
+    $subject =~ s/\n//sg;
     my $msg = new SFULogMessage();
     $msg->setEvent("message queued");
-    $msg->setDetail("$id to: $maillistname; from: $from; subject: $subject");
+    #$msg->setDetail("$id to: $maillistname; from: $from; subject: $subject");
+    $msg->setDetail(_detailJson($id, $from, $subject,''));
     $msg->setAppName("mlq");
     $msg->setTags(["$maillistname","$canonicalAddress","#mldelivery"]);
     my $APPLOG = new SFUAppLog();
-    $APPLOG->log('/queue/ICAT.test.log',$msg);
+    eval { $APPLOG->log('/queue/ICAT.log',$msg); };
+    if ($@) {
+	    syslog("err", "%s eval failed for call to APPLOG log", $main::ID);
+	    syslog("err", "%s APPLOG result: %s", $main::ID, $@);
+        _stderr( "${main::ID} eval failed for call to APPLOG log" );
+        _stderr( $@ );
+    }
 }
+
