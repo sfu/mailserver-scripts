@@ -173,8 +173,10 @@ sub deliveryList {
 					$self->{deliveryList} .= "*$address\n"
 				} elsif ($members->{$address}{type} == EXTERN) {
 					$self->{deliveryList} .= "$address\n"
+				} elsif (MLMail::validateUsername($address)) {
+				        $self->{deliveryList} .= "$address\n";
 				} else {
-					$self->{deliveryList} .= "$address\n" if MLMail::validateUsername($address);
+					_stdout "validateUsername fails for $address\n" if ($main::TEST);
 				}
 			}
 		}
