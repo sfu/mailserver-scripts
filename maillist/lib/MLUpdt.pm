@@ -72,9 +72,16 @@ sub updateMaillistFiles {
       flock MEMBERS, LOCK_EX;
       foreach $member (@members) {
          next unless defined $member;
-         my $copyonsend = $member->copyOnSend() eq 'true' ? 1 : 0;
-         my $manager = $member->manager() eq 'true' ? 1 : 0;
-         my $deliver = $member->deliver() eq 'true' ? 1 : 0;
+	 if ($main::VERBOSE)
+	 {
+	    _stdout("\nMember: ".$member->canonicalAddress());
+	    _stdout("\n  copyOnSend: ". $member->copyOnSend());
+	    _stdout("\n  manager: ". $member->manager());
+	    _stdout("\n  deliver: ". $member->deliver());
+	 }
+         my $copyonsend = ($member->copyOnSend() == 1 || $member->copyOnSend() eq 'true') ? 1 : 0;
+         my $manager = ($member->manager() == 1 || $member->manager() eq 'true') ? 1 : 0;
+         my $deliver = ($member->deliver() == 1 || $member->deliver() eq 'true') ? 1 : 0;
          print MEMBERS lc $member->canonicalAddress()."\t".$member->type()."\t$manager\t$deliver\t$copyonsend\n";
       }
       close MEMBERS;
@@ -180,26 +187,26 @@ sub createMLCacheFile {
           || return cleanReturn("Can't create/open $listname/maillist.db: $!. Can't continue!");
 
     $maillist{activationDate} = $ml->activationDate();
-    $maillist{allowedToSubscribeByEmail} = ($ml->allowedToSubscribeByEmail() eq 'true') ? 1 : 0;
+    $maillist{allowedToSubscribeByEmail} = ($ml->allowedToSubscribeByEmail() == 1 || $ml->allowedToSubscribeByEmail() eq 'true') ? 1 : 0;
     $maillist{bigMessageHandlingCode} = $ml->bigMessageHandlingString();
     $maillist{createDate} = $ml->createDate();
-    $maillist{defaultDeliver} = ($ml->defaultDeliver() eq 'true') ? 1 : 0;
-    $maillist{defer} = ($ml->defer() eq 'true') ? 1 : 0;
+    $maillist{defaultDeliver} = ($ml->defaultDeliver() == 1 || $ml->defaultDeliver() eq 'true') ? 1 : 0;
+    $maillist{defer} = ($ml->defer() == 1 || $ml->defer() eq 'true') ? 1 : 0;
 #    $maillist{deferReason} = $ml->deferReason();
-    $maillist{deliverySuspended} = ($ml->deliverySuspended() eq 'true') ? 1 : 0;
+    $maillist{deliverySuspended} = ($ml->deliverySuspended() == 1 || $ml->deliverySuspended() eq 'true') ? 1 : 0;
     $maillist{desc} = $ml->desc();
-    $maillist{disableUnsubscribe} = ($ml->disableUnsubscribe() eq 'true') ? 1 : 0;
+    $maillist{disableUnsubscribe} = ($ml->disableUnsubscribe() == 1 || $ml->disableUnsubscribe() eq 'true') ? 1 : 0;
     $maillist{errorsToAddress} = $ml->errorsToAddress();
     $maillist{expireDate} = $ml->expireDate();
     $maillist{externalDefaultAllowedToSend} = 
-                        ($ml->externalDefaultAllowedToSend() eq 'true') ? 1 : 0;
+                        ($ml->externalDefaultAllowedToSend() == 1 || $ml->externalDefaultAllowedToSend() eq 'true') ? 1 : 0;
     $maillist{externalSenderPolicy} = $ml->externalSenderPolicy();
     $maillist{externalSubscriptionPolicy} = 
                                 $ml->externalSubscriptionPolicy();
-    $maillist{hidden} = ($ml->hidden() eq 'true') ? 1 : 0;
+    $maillist{hidden} = ($ml->hidden() == 1 || $ml->hidden() eq 'true') ? 1 : 0;
     $maillist{lastChangeDate} = $ml->lastChangeDateString();
     $maillist{lastChanged} = $ml->lastChanged();
-    $maillist{localDefaultAllowedToSend} = ($ml->localDefaultAllowedToSend() eq 'true') ? 1 : 0;
+    $maillist{localDefaultAllowedToSend} = ($ml->localDefaultAllowedToSend() == 1 || $ml->localDefaultAllowedToSend() eq 'true') ? 1 : 0;
     $maillist{localSenderPolicy} = $ml->localSenderPolicy();
     $maillist{localSubscriptionPolicy} = 
                                  $ml->localSubscriptionPolicy();

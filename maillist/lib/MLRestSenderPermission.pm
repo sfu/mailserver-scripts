@@ -51,7 +51,7 @@ sub modify {
 sub isAllowedToSend {
     my $self = shift;
     
-    return $self->{isAllowedToSend} eq 'true';
+    return ($self->{isAllowedToSend} == 1 || $self->{isAllowedToSend} eq 'true');
 }
 
 sub toString {

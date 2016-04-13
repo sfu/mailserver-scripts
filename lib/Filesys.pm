@@ -4,7 +4,7 @@ require Exporter;
 @EXPORT = qw(migrateaccount makedir copyfile dircpy dirbak dirarc filearc backup_and_delete_directory get_current_vol get_filesys get_available_space recursive_delete runscript delete_account_files delete_archive_files archiveuser dir_contains_non_excluded_files isexcluded);
 use File::Copy;
 use English;
-use constant TAR => "/usr/sfw/bin/gtar";
+use constant TAR => "/bin/gtar";
 $BAKDIR = "/home_/bak";
 $EXCLUDED = "/usr/local/adm/amaint/excluded";
 
