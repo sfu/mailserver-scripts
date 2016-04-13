@@ -36,6 +36,8 @@ use constant LOCK_UN => 8;
 use strict;
 
 my $QFOLDER  = "$MAILLISTDIR/mlqueue";
+$main::MLDIR = "$MAILLISTDIR/files";
+
 my $maillistname = $ARGV[0];
 my $maxspamlevel = $ARGV[1];
 

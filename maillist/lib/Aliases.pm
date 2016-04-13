@@ -26,10 +26,14 @@ sub aliasToUsername {
 	$alias =~ tr/./_/;
 	$username = $ALIASES{"$alias\0"};
  	untie %ALIASES;
-	chop $username if $username;
-	$username =~ s/^\s+//;
-	$username =~ s/\s+$//;
-	return $username;
+	if ($username)
+	{
+		chop $username;
+		$username =~ s/^\s+//;
+		$username =~ s/\s+$//;
+		return $username;
+	}
+	return undef;
 }
 
 sub isStaticAlias {
