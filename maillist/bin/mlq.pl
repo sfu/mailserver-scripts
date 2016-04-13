@@ -6,11 +6,8 @@ use JSON;
 use Encode qw/encode decode/;
 require 'getopts.pl';
 #
-# mlq is most likely symlinked from /etc/smrsh so we need to figure
-# out where our lib dir is
-use File::Basename;
-$base = (-l __FILE__) ? dirname(readlink(__FILE__)) : dirname(__FILE__);
-use lib "$base/../lib";
+# mlq requires an absolute lib path, as it runs from /etc/smrsh
+use lib '/opt/amaint/maillist/lib';
 use Paths;
 use LOCK;
 use MLCache;
