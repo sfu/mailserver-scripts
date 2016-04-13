@@ -5,10 +5,12 @@ use MIME::Base64;
 use JSON;
 use Encode qw/encode decode/;
 require 'getopts.pl';
-# Find the lib directory above the location of myself. Should be the same directory I'm in
-# This isn't necessary if these libs get installed in a standard perl lib location
-use FindBin;
-use lib "$FindBin::Bin/../lib";
+#
+# mlq is most likely symlinked from /etc/smrsh so we need to figure
+# out where our lib dir is
+use File::Basename;
+$base = (-l __FILE__) ? dirname(readlink(__FILE__)) : dirname(__FILE__);
+use lib "$base/../lib";
 use Paths;
 use LOCK;
 use MLCache;
