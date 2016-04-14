@@ -3,8 +3,8 @@ use FindBin;
 use lib "$FindBin::Bin/../lib";
 use Paths;
 
+open ZIMBRA, ">$MAILDIR/zimbraforwards" or die "Open $MAILDIR/zimbraforwards failed: $!\n";
 open LDAP, '/usr/bin/ldapsearch -x -H ldap://bentley1.tier2.sfu.ca:389 "(&(objectClass=zimbraAccount)(zimbraPrefMailForwardingAddress=*))" zimbraPrefMailForwardingAddress|' or die "Open pipe from ldapsearch failed: $!\n";
-open ZIMBRA, '>$MAILDIR/zimbraforwards' or die "Open $MAILDIR/zimbraforwards failed: $!\n";
 $skip = 0;
 while (<LDAP>) {
     chomp;
