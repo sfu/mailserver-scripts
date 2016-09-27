@@ -2,6 +2,7 @@ package ICATCredentials;
 use Utils;
 use JSON;
 use Paths;
+use Carp;
 require Exporter;
 @ISA = qw(Exporter);
 
@@ -24,8 +25,9 @@ sub init {
     my $credfile = $self->{credDir} . $name;
     print( "credfile is " . $credfile ) if $main::TEST;
     local $/;
-    open( my $fh, '<', $credfile );
+    open( my $fh, '<', $credfile ) or croak("Error: $credfile: $!");
     $json_text = <$fh>;
+    close $fh;
     $json = JSON->new->allow_nonref;
     $self->{cred} = $json->decode($json_text);
     return $self;

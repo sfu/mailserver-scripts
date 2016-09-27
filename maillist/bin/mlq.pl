@@ -5,10 +5,9 @@ use MIME::Base64;
 use JSON;
 use Encode qw/encode decode/;
 require 'getopts.pl';
-# Find the lib directory above the location of myself. Should be the same directory I'm in
-# This isn't necessary if these libs get installed in a standard perl lib location
-use FindBin;
-use lib "$FindBin::Bin/../lib";
+#
+# mlq requires an absolute lib path, as it runs from /etc/smrsh
+use lib '/opt/amaint/maillist/lib';
 use Paths;
 use LOCK;
 use MLCache;
@@ -37,6 +36,8 @@ use constant LOCK_UN => 8;
 use strict;
 
 my $QFOLDER  = "$MAILLISTDIR/mlqueue";
+$main::MLDIR = "$MAILLISTDIR/files";
+
 my $maillistname = $ARGV[0];
 my $maxspamlevel = $ARGV[1];
 

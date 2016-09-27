@@ -12,10 +12,9 @@ use Mail::Address;
 use Mail::Send;
 use Digest::MD5;
 use SOAP::Lite ;
-# Find the lib directory above the location of myself. Should be the same directory I'm in
-# This isn't necessary if these libs get installed in a standard perl lib location
-use FindBin;
-use lib "$FindBin::Bin/../lib";
+#
+# mlproxy requires an absolute lib path, as it runs from /etc/smrsh
+use lib '/opt/amaint/maillist/lib';
 use Paths;
 use MLMail;
 use MLCache;
