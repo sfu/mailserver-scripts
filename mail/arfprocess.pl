@@ -164,7 +164,7 @@ sub process_sender()
     $c++;
     $arfdb{"$s.count"}=$c;
     untie(%arfdb);
-    if ($c == 1 || $c == 3 || $c == 6 || (!($c%10)))
+    if ($c == 1 || $c == 3 || $c == 6 || (!($c%10))|| $s eq "142.58.101.11")
     {
 	sendalert($s,$c);
     }

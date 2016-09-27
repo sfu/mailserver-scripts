@@ -51,7 +51,7 @@ $LOCKFILE = "$LOCKDIR/passwd.lock";
 $ALIASFILE = "$MAILDIR/aliases2";
 $TMPALIASFILE = "$ALIASFILE.new";
 $MINCOUNT = 50000;
-$EXCLUDES = "wiki|admin|spam.ui5gzd9xy|ham.uzqsnwwk|test1|majordom|maillist|alumhelp"  ;        # Accounts that shouldn't be put into aliases map for Connect
+$EXCLUDES = "wiki|admin|spam.ui5gzd9xy|ham.uzqsnwwk|test1|majordom|maillist"  ;        # Accounts that shouldn't be put into aliases map for Connect
 use constant SHELL => "/bin/sh";
 
 # Target mail host for users
