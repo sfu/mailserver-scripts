@@ -38,7 +38,7 @@ $main::TEST = $opt_t ? $opt_t : 0;
 exit(0) if lockInUse($LOCKFILE);
 acquire_lock($LOCKFILE);
 open( ALIASESSRC, ">$TMPALIASFILE" )
-  || die "Can't open aliases source file: ${TMPALIASFILE}.\n\n";
+  || cleanexit("Can't open aliases source file: $TMPALIASFILE.\n\n");
 
 # Clean out any existing temporary map.
 unlink "$ALIASMAPNAME.tmp$TS";
@@ -52,9 +52,11 @@ $atsign = "@";
 $ALIASES{"$atsign\0"} = "$atsign\0";
 
 $cred = new ICATCredentials('maillist.json')->credentialForName('robert');
-my $client =
-  new MLRestClient( $cred->{username}, $cred->{password}, $main::TEST );
-my $aliases = $client->getAliasesTxt();
+my ($client,$aliases);
+eval {
+    $client = new MLRestClient( $cred->{username}, $cred->{password}, $main::TEST );
+    $aliases = $client->getAliasesTxt();
+};
 print "aliases: $aliases\n" if $main::TEST;
 cleanexit("getAliasesTxt returned undef") unless $aliases;
 cleanexit($aliases) if ( $aliases =~ /^err / );
