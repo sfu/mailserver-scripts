@@ -12,7 +12,7 @@ sub new {
 	$self->{instance} = '0';
 	$self->{sessionId} = '0';
 	$self->{clientIp} = '';
-	$self->{ttl} = '14';
+	$self->{ttl} = '60';
 	chomp( $self->{hostname} = `hostname` );
 	$self->{user} = getpwuid($<);
 	return $self;
