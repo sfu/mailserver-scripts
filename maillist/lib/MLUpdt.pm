@@ -28,6 +28,9 @@ use constant LOCK_EX => 2;
 use constant LOCK_NB => 4;
 use constant LOCK_UN => 8;
 
+# regex of lists to ignore. Format for more than one: "(list|list|list)"
+my $EXCLUDES = "lightweight-accounts";
+
 sub updateMaillistFiles {
     my $listname = shift;
     my $member = '';
@@ -140,6 +143,11 @@ sub updateAllMaillists {
                                                        unless defined $LISTS;
 	foreach $ml (@$LISTS) {
 		my $listname = $ml->name();
+		if ($listname =~ /$EXCLUDES/)
+		{
+			_stdout("Skipping $listname. In $EXCLUDES");
+			next;
+		}
 		if ($ml->lastChange() ne localTimestamp($listname)) {
 			_stdout( "updateAllMaillists: Updating $listname" );
 			updateMaillistFiles( $listname );
