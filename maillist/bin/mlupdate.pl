@@ -96,16 +96,10 @@ unless ($main::TEST) {
 	my $peer = "$a.$b.$c.$d";
 	my ($peername, $aliases, $addrtype, $length, @addrs) = gethostbyaddr($peeraddr, AF_INET);
 	
-	if (!( $peername =~ /^garibaldi.nfs.sfu.ca/ || 
-		   $peername =~ /^garibaldi1.nfs.sfu.ca/ ||
-		   $peername =~ /^garibaldi2.nfs.sfu.ca/ ||
-		   $peername =~ /^garibaldi3.nfs.sfu.ca/ ||
-		   $peername =~ /^garibaldi4.nfs.sfu.ca/ ||
-		   $peername =~ /^garibaldi3.tier2.sfu.ca/ ||
+	if (!( $peername =~ /^garibaldi3.tier2.sfu.ca/ ||
 		   $peername =~ /^garibaldi4.tier2.sfu.ca/ ||
-		   $peername =~ /^bigwhite.ucs.sfu.ca/ ||
-		   $peername =~ /^northface.ucs.sfu.ca/ ||
 		   $peername =~ /^localhost/ ||
+		   $peer =~ /^10\.2\./ ||
 		   $peername =~ /^rm-rstar.sfu.ca/ )) { 
 		_stdout( "Connection not allowed from $peername!" );
 		exit 0; 
