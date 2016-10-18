@@ -36,8 +36,7 @@ foreach my $maillistDir (@localMaillistArray) {
                _stdout( "Deleting inactive \'$maillistDir\'" );
                `rm -f $MAILLISTDIR/files/$maillistDir/allow`;
                `rm -f $MAILLISTDIR/files/$maillistDir/deny`;
-               `rm -f $MAILLISTDIR/files/$maillistDir/maillist.dir`;
-               `rm -f $MAILLISTDIR/files/$maillistDir/maillist.pag`;
+               `rm -f $MAILLISTDIR/files/$maillistDir/maillist.db`;
                `rm -f $MAILLISTDIR/files/$maillistDir/members`;
                `rm -f $MAILLISTDIR/files/$maillistDir/deliveryList`;
                `rm -f $MAILLISTDIR/files/$maillistDir/ts`;
