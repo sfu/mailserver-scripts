@@ -88,23 +88,27 @@ if ($main::listname) {
 # We are being run via inetd. 
 # Only accept connections from localhost, garibaldi, and my test hosts
 
-unless ($main::TEST) {
-	my $sockaddr = 'S n a4 x8';
-	my $peersockaddr = getpeername(STDIN);
-	my ($family, $port, $peeraddr) = unpack($sockaddr, $peersockaddr);
-	my ($a, $b, $c, $d) = unpack('C4', $peeraddr);
-	my $peer = "$a.$b.$c.$d";
-	my ($peername, $aliases, $addrtype, $length, @addrs) = gethostbyaddr($peeraddr, AF_INET);
-	
-	if (!( $peername =~ /^garibaldi3.tier2.sfu.ca/ ||
-		   $peername =~ /^garibaldi4.tier2.sfu.ca/ ||
-		   $peername =~ /^localhost/ ||
-		   $peer =~ /^10\.2\./ ||
-		   $peername =~ /^rm-rstar.sfu.ca/ )) { 
-		_stdout( "Connection not allowed from $peername!" );
-		exit 0; 
-	} 
-}
+# getpeername() doesn't seem to work reliably on an xinetd socket under Linux
+# so we'll just have to rely on xinetd itself to do IP-based ACLs. Make sure
+# you set them up
+#
+#unless ($main::TEST) {
+#	my $sockaddr = 'S n a4 x8';
+#	my $peersockaddr = getpeername(STDIN);
+#	my ($family, $port, $peeraddr) = unpack($sockaddr, $peersockaddr);
+#	my ($a, $b, $c, $d) = unpack('C4', $peeraddr);
+#	my $peer = "$a.$b.$c.$d";
+#	my ($peername, $aliases, $addrtype, $length, @addrs) = gethostbyaddr($peeraddr, AF_INET);
+#	
+#	if (!( $peername =~ /^garibaldi3.tier2.sfu.ca/ ||
+#		   $peername =~ /^garibaldi4.tier2.sfu.ca/ ||
+#		   $peername =~ /^localhost/ ||
+#		   $peer =~ /^10\.2\./ ||
+#		   $peername =~ /^rm-rstar.sfu.ca/ )) { 
+#		_stdout( "Connection not allowed from $peername!" );
+#		exit 0; 
+#	} 
+#}
 
 # Get the maillist name from stdin
 
