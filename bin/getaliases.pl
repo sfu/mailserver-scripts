@@ -158,11 +158,7 @@ while (<SINGLEID>) {
     ($key,$value) = split(/:/);
     $value =~ s/\s+//g;
     $value =~ s/\@.*//;
-    if (!defined($USERS{"$value\0"}))
-    {
-	print STDERR "Skipping \"$_\". Not in Users map\n";
-	next;
-    }
+    next if (!defined($USERS{"$value\0"}));
 
     &process_alias($_);
     print STATIC "$_\n";
