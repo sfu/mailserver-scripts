@@ -38,6 +38,8 @@ use Utils;
 use LOCK;
 use ICATCredentials;
 use Paths;
+use LWP::Simple;
+
 
 select(STDOUT);
 $|           = 1;               # make unbuffered
@@ -49,6 +51,7 @@ $SIG{'ALRM'} = 'EXITHANDLER';
 
 $ALIASMAPNAME       = "$ALIASESDIR/aliases";
 $ALIASFILE          = "$ALIASESDIR/aliases";
+$USERMAPNAME        = "$ALIASESDIR/aliases2.db";
 $TMPALIASFILE       = "$ALIASFILE.new";
 $STATICFILE         = "$ALIASESDIR/staticaliases";
 $TMPSTATICFILE      = "$STATICFILE.new";
@@ -102,6 +105,12 @@ unlink "$ALIASMAPNAME.tmp";
 tie( %ALIASES, "DB_File","$ALIASMAPNAME.tmp", O_CREAT|O_RDWR,0644,$DB_HASH )
   || die "Can't open aliases map $ALIASMAPNAME.tmp.";
 
+# Open the users map.
+tie( %USERS, "DB_File","$USERMAPNAME", O_READ,0644,$DB_HASH )
+  || die "Can't open users map $USERMAPNAME";
+
+&getAlumni();
+
 $modtime = sprintf( "%010d", time );
 $ALIASES{"YP_LAST_MODIFIED"} = $modtime;
 $ALIASES{"YP_MASTER_NAME"}   = $YPMASTER;
@@ -120,6 +129,13 @@ open( LIGHTWEIGHT, "<$LIGHTWEIGHTALIASES" )
   || die "Can't open lightweight alias file:${LIGHTWEIGHTALIASES}.\n\n";
 while (<LIGHTWEIGHT>) {
     chomp;
+
+    # Skip over lightweight accounts that point to Alumni accounts that haven't been set up
+    ($key,$value) = split(/:/);
+    $value =~ s/\s+//g;
+    $value =~ s/\@.*//;
+    next if (!$ALUMNI{$value});
+
     &process_alias($_);
     print STATIC "$_\n";
     $count++;
@@ -133,6 +149,18 @@ open( SINGLEID, "<$SINGLEIDALIASES" )
 }.\n\n";
 while (<SINGLEID>) {
     chomp;
+
+    # Skip over "Single ID" aliases (old accounts that were retired when we amalgamated accounts) 
+    # that point to accounts that are no longer active
+    ($key,$value) = split(/:/);
+    $value =~ s/\s+//g;
+    $value =~ s/\@.*//;
+    if (!defined($USERS{$value}))
+    {
+	print STDERR "Skipping \"$_\". Not in Users map\n";
+	next;
+    }
+
     &process_alias($_);
     print STATIC "$_\n";
     $count++;
@@ -235,3 +263,22 @@ sub EXITHANDLER {
     &cleanexit("Aborted");
 }
 
+sub getAlumni {
+	my $cred  = new ICATCredentials('alumni.json')->credentialForName('aliases');
+	my $TOKEN = $cred->{'token'};
+	$SERVICEURL = $cred->{'url'};
+
+	my $aldata = get("${SERVICEURL}/aliases?token=$TOKEN");
+	if ( $aldata =~ /^err / ) {
+    		cleanexit($aldata);
+	}
+	unless ($aldata) {
+    		cleanexit("Amaint returned empty aliases file.");
+	}
+
+	my ($key,$value);
+	foreach $row ( split /\n/, $aldata ) {
+		($key,$value) = split(/:/,$row);
+		$ALUMNI{$key} = 1;
+	}
+}
