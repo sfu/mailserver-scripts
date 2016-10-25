@@ -158,7 +158,7 @@ while (<SINGLEID>) {
     ($key,$value) = split(/:/);
     $value =~ s/\s+//g;
     $value =~ s/\@.*//;
-    if (!defined($USERS{$value}))
+    if (!defined($USERS{"$value\0"}))
     {
 	print STDERR "Skipping \"$_\". Not in Users map\n";
 	next;
@@ -282,6 +282,7 @@ sub getAlumni {
 	my ($key,$value);
 	foreach $row ( split /\n/, $aldata ) {
 		($key,$value) = split(/:/,$row);
+		$key =~ s/\@.*//;
 		$ALUMNI{$key} = 1;
 	}
 }
