@@ -106,7 +106,7 @@ tie( %ALIASES, "DB_File","$ALIASMAPNAME.tmp", O_CREAT|O_RDWR,0644,$DB_HASH )
   || die "Can't open aliases map $ALIASMAPNAME.tmp.";
 
 # Open the users map.
-tie( %USERS, "DB_File","$USERMAPNAME", O_READ,0644,$DB_HASH )
+tie( %USERS, "DB_File","$USERMAPNAME", O_RDONLY,0644,$DB_HASH )
   || die "Can't open users map $USERMAPNAME";
 
 &getAlumni();
@@ -130,14 +130,17 @@ open( LIGHTWEIGHT, "<$LIGHTWEIGHTALIASES" )
 while (<LIGHTWEIGHT>) {
     chomp;
 
+    $line = $_;
     # Skip over lightweight accounts that point to Alumni accounts that haven't been set up
-    ($key,$value) = split(/:/);
-    $value =~ s/\s+//g;
-    $value =~ s/\@.*//;
-    next if (!$ALUMNI{$value});
+    if (/\@alumni.sfu.ca/) {
+    	($key,$value) = split(/:/);
+    	$value =~ s/\s+//g;
+    	$value =~ s/\@.*//;
+    	next if (!$ALUMNI{$value});
+    }
 
-    &process_alias($_);
-    print STATIC "$_\n";
+    &process_alias($line);
+    print STATIC "$line\n";
     $count++;
 }
 close LIGHTWEIGHT;
