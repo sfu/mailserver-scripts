@@ -47,7 +47,7 @@ $LISTNAME = $ARGV[0];
 $PREFIX = "";
 
 # Note: the user 'nullmail' which is the user that runs sendmail must have read access to /usr/local/credentials/maillist.json
-my $mlrest = new ICATCredentials('maillist.json')->credentialForName('mlrest');
+my $mlrest = new ICATCredentials('maillist.json')->credentialForName('robert');
 my $client = new MLRestClient($mlrest->{username},$mlrest->{password},0);
 
 my $info = $client->getMaillistByName( $LISTNAME );
