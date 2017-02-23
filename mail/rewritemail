@@ -1,0 +1,69 @@
+#!/usr/bin/perl
+#
+# This script handles anonymizing messages sent to students for
+# an annual survey. A separate process generates a list of random
+# numbers, one per recipient, and the <name>_surveydb file is 
+# populated with the number-to-email mapping. Messages are then
+# sent to <name>_survey+<randomNumber> which this script receives
+# and forwards on to the corresponding email address
+#
+# See George Lee (glee@sfu.ca) for the process that generates the
+# number-to-email mapping
+
+use DB_File ;
+
+# All 3 files below must be read/writable by user that sendmail runs scripts as ('mail' on Linux)
+my $SurveyDBPath = '/opt/mail/surveys' ;
+my $Log = "$surveyDBPath/surveys.log";
+my $map = "default";
+
+my $tempDir = '/tmp/' ;
+
+my $currentTS = time() ;
+
+my $randNum = int( rand( 10000 ) ) ;
+
+my $tempFile = $tempDir . $currentTS . "-" . $randNum ;
+
+my %aliases ;
+
+open ( LOG, ">>$Log" ) ;
+
+print LOG "opened log file " . scalar localtime() . "\n" ;
+
+
+my $mailx = $tempFile ;
+
+open (MAILX, ">$mailx") ;
+
+while ( <> ) {
+        if ( $_ =~ "To:\ [a-z]+_survey\+" ) {
+                my $alias = $_ ;
+                $alias =~ /To:\ ([a-z]+)_survey\+([0-9]+)\@sfu\.ca/ ;
+		$matchAlias = $1 ;
+		$map = $2;
+		openAliases($map);
+		if ( $aliases{$matchAlias} ) {
+	                print LOG scalar localtime() . "\t-\t $matchAlias - sent to $aliases{$matchAlias} \n" ;
+	       	        print MAILX "To: $aliases{$matchAlias}\n" ;
+		} else {
+			print LOG scalar localtime() . "\tERROR\t $matchAlias does not map, sending to nobody\n" ;
+			print MAILX 'To: nobody@sfu.ca' . "\n" ;
+		}
+        } else {
+                print MAILX $_ ;
+        }
+}
+close ( FH ) ;
+close (MAILX) ;
+`cat $mailx | /usr/sbin/sendmail -t` ;
+`cat $mailx >> $SurveyDBPath/${map}-survey-outgoing.txt`;
+unlink( $mailx ) ;
+
+untie %aliases ;
+close ( LOG ) ;
+
+sub openAliases() {
+    	my $map = shift;
+	tie %aliases,DB_Hash,"$SurveyDBPath/${map}_survey.db",O_RDONLY,0666 ;
+}
