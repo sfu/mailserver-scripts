@@ -14,7 +14,7 @@
 my $SurveyDBPath = "/opt/mail/surveys";
 use DB_File ;
 
-my $survey = $ARGV[1];
+my $survey = $ARGV[0];
 
 if (!$survey)
 {
@@ -22,7 +22,7 @@ if (!$survey)
 	exit 1;
 }
 
-tie %aliases,DB_Hash,"$SurveyDBPath/${survey}_survey.db",O_RDWR|O_CREAT,0666 ;
+tie %aliases,"DB_File","$SurveyDBPath/${survey}_survey.db",O_RDWR|O_CREAT,0666,$DB_HASH ;
 
 while ( <> ) {
 	my ($sfuid, $account, $mailalias, $nsseaddress) = split /\t/, $_ ;
