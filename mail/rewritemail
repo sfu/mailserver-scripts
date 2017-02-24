@@ -14,7 +14,7 @@ use DB_File ;
 
 # All 3 files below must be read/writable by user that sendmail runs scripts as ('mail' on Linux)
 my $SurveyDBPath = '/opt/mail/surveys' ;
-my $Log = "$surveyDBPath/surveys.log";
+my $Log = "$SurveyDBPath/surveys.log";
 my $map = "default";
 
 my $tempDir = '/tmp/' ;
@@ -47,7 +47,7 @@ while ( <> ) {
 	                print LOG scalar localtime() . "\t-\t $matchAlias - sent to $aliases{$matchAlias} \n" ;
 	       	        print MAILX "To: $aliases{$matchAlias}\n" ;
 		} else {
-			print LOG scalar localtime() . "\tERROR\t $matchAlias does not map, sending to nobody\n" ;
+			print LOG scalar localtime() . "\tERROR\t $matchAlias is not in $map, sending to nobody\n" ;
 			print MAILX 'To: nobody@sfu.ca' . "\n" ;
 		}
         } else {
@@ -65,5 +65,5 @@ close ( LOG ) ;
 
 sub openAliases() {
     	my $map = shift;
-	tie %aliases,"DB_File","$SurveyDBPath/${map}_survey.db",O_RDONLY,0666,$DB_HASH ;
+	tie %aliases,"DB_File","$SurveyDBPath/".$map."_survey.db",O_RDONLY,0666,$DB_HASH ;
 }
