@@ -7,8 +7,9 @@
 
 use Socket;
 use Getopt::Std;
+use JSON;
 
-# Only accept connections from seymour and garibaldi
+# Only accept connections from authorized hosts
 
 $| = 1;
 $sockaddr = 'S n a4 x8';
@@ -18,13 +19,16 @@ $peersockaddr = getpeername(STDIN);
 $peer = "$a.$b.$c.$d";
 ($peername, $aliases, $addrtype, $length, @addrs) = gethostbyaddr($peeraddr, AF_INET);
 
-if (!( $peername =~ /^hatzic.tier2.sfu.ca/ || 
-       $peername =~ /^garibaldi(1|2|3|4).tier2.sfu.ca/ ||
-	# Steve's desktop, for testing:
-       $peername =~ /^d142-058-003-221.burnaby.sfu.ca/ ||
-       $peername =~ /^pobox(1|2).tier2.sfu.ca/ ||
-       $peername =~ /^mailgw(1|2).tier2.sfu.ca/ ||
-       $peername =~ /^rm-rstar(1|2).tier2.sfu.ca/ )) { 
+if (!( $peername =~ /^hatzic.nfs.sfu.ca/ || 
+       $peername =~ /^garibaldi3.tier2.sfu.ca/ ||
+       $peername =~ /^garibaldi4.tier2.sfu.ca/ ||
+       $peername =~ /^hatzic-stage[12].tier2.sfu.ca/ ||
+       $peername =~ /^mailgw1.tier2.sfu.ca/ ||
+       $peername =~ /^mailgw2.tier2.sfu.ca/ ||
+       $peername =~ /^pobox1.tier2.sfu.ca/ ||
+       $peername =~ /^pobox2.tier2.sfu.ca/ ||  
+       $peername =~ /^rm-rstar1.nfs.sfu.ca/ ||
+       $peername =~ /^rm-rstar2.nfs.sfu.ca/ )) { 
     print "Bye $peername!\n";
     exit 0; 
 } 
@@ -33,6 +37,22 @@ print "ok\n";
 
 $cmd = <>;
 $cmd =~ s/[\r\n]+//;
+
+
+#sub usage()
+#{
+#    print <<EOF;
+#Usage:
+#   quarantine [-q]                - View the quarantine queue
+#   quarantine -w [-a|-d  address] - View or manage the whitelist
+#   quarantine -v Message-ID       - View a quarantined message
+#   quarantine -d regex            - Delete messages from the quarantine queue on both rm-rstar1&2
+#   quarantine -r QueueID          - Release message with this Queue Identifier
+#
+#You must be ROOT for all but the first variant
+#
+#EOF
+#}
 
 
     # Human-readable queue summary
@@ -46,22 +66,52 @@ $cmd =~ s/[\r\n]+//;
     # Summary for Xymon/big Brother
     # First line is number of quarantine'd msgs
     # If non-zero, include summary of users, msgs, recipients, subjects
-    if ($cmd =~ "^queuebb")
+    #
+    # Now overloaded to handle json output for a web friendly version. Parse QF files to populate hash for json
+    # QF looks like this:
+    # V8
+    # T1481617801
+    # K1481665051
+    # N16
+    # P1475902
+    # I253/0/783874
+    # B7BIT
+    # MDeferred: Connection refused by sfuchildcare.ca.
+    # Fwbs
+    # $_[119.28.98.251]
+    # $rESMTP
+    # $ssawadika13.top
+    # ${daemon_flags}
+    # ${if_addr}192.168.99.109
+    # S<bounce-452-96378416-452-248@sawadika13.top>
+
+    if ($cmd =~ "^(queuebb|queuejson)")
     {
-	$view = 0;
+	$view = 0; $json = ($cmd=~"^queuejson") ? 1 : 0;
 	if ($cmd =~ /^queuebb -v (.*)$/)
 	{
 	    $view = $1;
 	}
+	if ($cmd =~ /^queuejson (.*)$/)
+	{
+	    $limit = $1;
+	    $limit = 0 if ($limit < 0);
+	}
 	@qfiles = `find /var/spool/mqueue -name "hf*" -print`;
 	$total = @qfiles;
-	print "$total\n";
+	print "$total\n" if (!$json);
+	my %jsondata;
+	$jsondata{total} = $total;
 	if ($total)
 	{
+	    $count = 0;
+	    $jsondata{messages} = [];
 	    foreach $qf (@qfiles)
 	    {
+		my (%qdata);
 		$qf =~ m/\/hf(.+)$/;
 		$qid = $1;
+		$qdata{id} = $qid;
 		push(@qids, $qid);
 		open(QF,$qf);
 		@lines = <QF>;
@@ -76,48 +126,75 @@ $cmd =~ s/[\r\n]+//;
 		    elsif ($l =~ /\$_(.*)/)
 		    {
 			$hosts{$1} .= "$qid:";
+			$qdata{host} = $1;
 		    }
 		    elsif ($l =~ /X-Authenticated-User: (.*)/)
 		    {
 			$qid{$1} .= "$qid:";
+			$qdata{authuser} = $1;
 		    }
 		    elsif ($l =~ /Subject: (.*)/)
 		    {
 			$subject{$qid} = $1;
+			$qdata{subject} = $1;
+		    }
+		    elsif ($l =~ /^T(\d+)$/)
+		    {
+			$qdata{ctime} = $1;
+		    }
+		    elsif ($l =~ /^K(\d+)$/)
+		    {
+			$qdata{mtime} = $1;
+		    }
+		    elsif ($l =~ /^S<?([^>]+)>?/)
+		    {
+			$qdata{sender} = $1;
 		    }
 		}
+		$qdata{recips} = $recips{$qid};
+		push(@{$jsondata{messages}},\%qdata);
+		$count++;
+		last if ($count == $limit);
 	    }
 
-	    # Summarize results
-	    print "Unique SFUConnect users seen:\n" if (!$view);
-	    foreach $user (keys %qid)
+	    if (!$json)
 	    {
-		@msgs = split(/:/,$qid{$user});
-		if ($view) { 
-		    next if ($user ne $view); 
-		    $qid = $msgs[0];
-		    system("find /var/spool/mqueue -name hf$qid -exec cat '{}' \\;; find /var/spool/mqueue -name df$qid -exec cat '{}' \\;");
-		    exit 0;
-		}
-		$count = @msgs;
-		$recips = 0;
-		foreach (@msgs) { $recips += $recips{$_}; }
-		print "Sender: $user\tMsgs: $count\tRecipients: $recips\n";
-		print "  Sample: $msgs[0]\n";
-		print "  Subject: ",$subject{$msgs[0]},"\n";
+	        # Summarize results
+	        print "Unique SFUConnect users seen:\n" if (!$view);
+	        foreach $user (keys %qid)
+	        {
+		    @msgs = split(/:/,$qid{$user});
+		    if ($view) { 
+		        next if ($user ne $view); 
+		        $qid = $msgs[0];
+		        system("find /var/spool/mqueue -name hf$qid -exec cat '{}' \\;; find /var/spool/mqueue -name df$qid -exec cat '{}' \\;");
+		        exit 0;
+		    }
+		    $count = @msgs;
+		    $recips = 0;
+		    foreach (@msgs) { $recips += $recips{$_}; }
+		    print "Sender: $user\tMsgs: $count\tRecipients: $recips\n";
+		    print "  Sample: $msgs[0]\n";
+		    print "  Subject: ",$subject{$msgs[0]},"\n";
+	        }
+    
+	        print "Unique hosts seen:\n";
+	        foreach $host (keys %hosts)
+	        {
+		    @msgs = split(/:/,$hosts{$host});
+		    $count = @msgs;
+		    $recips = 0;
+		    foreach (@msgs) { $recips += $recips{$_}; }
+		    print "Host: $host\tMsgs: $count\tRecipients: $recips\n";
+		    print "  Sample: $msgs[0]\n";
+		    print "  Subject: ",$subject{$msgs[0]},"\n";
+	        }
 	    }
-
-	    print "Unique hosts seen:\n";
-	    foreach $host (keys %hosts)
-	    {
-		@msgs = split(/:/,$hosts{$host});
-		$count = @msgs;
-		$recips = 0;
-		foreach (@msgs) { $recips += $recips{$_}; }
-		print "Host: $host\tMsgs: $count\tRecipients: $recips\n";
-		print "  Sample: $msgs[0]\n";
-		print "  Subject: ",$subject{$msgs[0]},"\n";
-	    }
+	}
+	if ($json)
+	{
+	    $jsonobj = JSON->new->allow_nonref;
+	    print $jsonobj->encode(\%jsondata),"\n";
 	}
 	exit 0;
     }
@@ -134,6 +211,13 @@ $cmd =~ s/[\r\n]+//;
     {
 	$regex = $1;
 	system("/usr/local/etc/cleanqueue -q \"$regex\"");
+	exit 0;
+    }
+
+    if ($cmd =~ /^deleteI ([\w\d]+)$/)
+    {
+	$qid = $1;
+	system("find /var/spool/mqueue \\( -name hf$qid -o -name df$qid \\) -exec rm '{}' \\;");
 	exit 0;
     }
 

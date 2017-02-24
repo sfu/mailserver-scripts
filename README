@@ -1,7 +1,10 @@
 Scripts for Mail server management
  - maillist: all scripts related to maillist delivery, including the actual delivery code
       as well as the scripts that keep the maillist membership files up to date.
- - bin: scripts to fetch data from Amaint to keep mail server Aliases db files up to date
+ - mail: scripts primarily related to mail delivery and queue mgmt. 
+         Most scripts here will be symlinked from /etc/smrsh
+ - bin: scripts to fetch data from Amaint to keep mail server Aliases db files up to date.
+        Also includes the quarantine daemon for managing the server itself
 
 This git repo can be run from wherever it's installed, but ensure the paths in lib/Paths.pm has
 the correct paths for where data is to be stored. These must agree with where Sendmail looks
