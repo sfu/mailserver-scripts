@@ -4,13 +4,60 @@
 # The queue is used by the rate limiting milter, which flags messages
 # for quarantine if the sender sends to too many non-sfu recipients in
 # a day. 
+#
+# Create an xinetd entry to invoke this script when connections 
+# come in on the desired port. For additional security, use xinetd's
+# config to limit what IP addresses can connect
 
 use Socket;
 use Getopt::Std;
 use JSON;
+use DB_File;
+
+# List of services that could be running on this host. We use this to
+# determine which commands to allow
+my %service;
+@services = ("sendmail","mailfromd");
+getServices();
+
+# List of files we're allowed to alter remotely
+$files = { accessdynamic =>
+			{
+				path => "/etc/mail/access.dynamic",
+				type => "access", # file type: sendmail access file
+				access => "rwa", # access: r=read, w=overwrite, a=append
+				postcmd => "cat /etc/mail/access.static /etc/mail/access.dynamic > /etc/mail/access; /usr/bin/makemap hash /etc/mail/access.db < /etc/mail/access"
+			},
+			accessstatic =>
+			{
+				path => "/etc/mail/access.static",
+				type => "access",
+				access => "ra",
+				postcmd => "cat /etc/mail/access.static /etc/mail/access.dynamic > /etc/mail/access; /usr/bin/makemap hash /etc/mail/access.db < /etc/mail/access"
+			},
+			access =>
+			{
+				path => "/etc/mail/access.db",
+				type => "db", # file type: standard Berkeley DB file
+				access => "r",
+			},
+			virtusertable =>
+			{
+				path => "/etc/mail/virtusertable.db",
+				type => "db",
+				access => "rwa",
+				hastext => "1", # also update text version of file (name minus the ".db" suffix)
+			}, 
+			mailfromdwhitelist =>
+			{
+				path => "/usr/local/var/mailfromd/whitelist.db",
+				type => "db",
+				access => "rwa",
+				hastext => "1",
+			}
+		 };
 
 # Only accept connections from authorized hosts
-
 $| = 1;
 $sockaddr = 'S n a4 x8';
 $peersockaddr = getpeername(STDIN);
@@ -19,8 +66,7 @@ $peersockaddr = getpeername(STDIN);
 $peer = "$a.$b.$c.$d";
 ($peername, $aliases, $addrtype, $length, @addrs) = gethostbyaddr($peeraddr, AF_INET);
 
-if (!( $peername =~ /^hatzic.nfs.sfu.ca/ || 
-       $peername =~ /^garibaldi3.tier2.sfu.ca/ ||
+if (!( $peername =~ /^garibaldi3.tier2.sfu.ca/ ||
        $peername =~ /^garibaldi4.tier2.sfu.ca/ ||
        $peername =~ /^hatzic-stage[12].tier2.sfu.ca/ ||
        $peername =~ /^mailgw1.tier2.sfu.ca/ ||
@@ -229,8 +275,70 @@ $cmd =~ s/[\r\n]+//;
 	exit 0;
     }
 
+    if ($cmd =~ /^get ([a-z]+)$/)
+    {
+    	$what = $1;
+    	if (defined($file->{$what}))
+    	{
+    		$res = getFile($what);
+    		print $res;
+    	}
+    	exit 0;
+    }
 
 
     print "unknown command: $cmd\n";
     exit 0;
 
+
+# Determine which services are running on this host by using either the 'service' or 'systemctl' command
+# Currently only supports RH/CentOS 6/7 hosts
+sub getServices()
+{
+    $systemd = 1 if (-e "/usr/bin/systemctl"); 
+    foreach my $s (@services)
+    {
+    	$enable = 0;
+    	if ($systemd)
+    	{
+    		$res = `/usr/bin/systemctl status $s`;
+    		$enabled = 1 if ($res =~ /Loaded: loaded.*enabled/);
+    	}
+    	else
+    	{
+    		$res = `service $s status`;
+    		$enabled = 1 if ($res =~ /is running/);
+    	}
+		$service{$s} = $enabled;
+	}
+}
+
+sub getFile()
+{
+	$file = shift;
+	return "" if (!defined($files->{$file}->{$path}));
+	if ($files->{$file}->{'type'} eq "db")
+	{
+		tie %content,"DB_File",$files->{$file}->{$path},O_RDONLY,0666,$DB_HASH;
+		$jsonobj = JSON->new->allow_nonref;
+	    $res = $jsonobj->encode(\%content);
+	    untie %content;
+	}
+	elsif ($files->{$file}->{'type'} eq "access")
+	{
+		# Sendmail 'access'-style text file. Treat each line as a key/value pair and convert to json
+		my %content;
+		open(IN,$files->{$file}->{'path'});
+		while(<IN>)
+		{
+			next if (/^#/);
+			chomp;
+			($key,$val) = split(/\s+/,$_,2);
+			$content{$key} = $val;
+		}
+		close IN;
+		$jsonobj = JSON->new->allow_nonref;
+	    $res = $jsonobj->encode(\%content);
+	}
+	return $res;
+}
