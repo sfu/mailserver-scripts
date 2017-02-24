@@ -40,8 +40,8 @@ while ( <> ) {
         if ( $_ =~ "To:\ [a-z]+_survey\+" ) {
                 my $alias = $_ ;
                 $alias =~ /To:\ ([a-z]+)_survey\+([0-9]+)\@sfu\.ca/ ;
-		$matchAlias = $1 ;
-		$map = $2;
+		$matchAlias = $2 ;
+		$map = $1;
 		openAliases($map);
 		if ( $aliases{$matchAlias} ) {
 	                print LOG scalar localtime() . "\t-\t $matchAlias - sent to $aliases{$matchAlias} \n" ;
