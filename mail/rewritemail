@@ -65,5 +65,5 @@ close ( LOG ) ;
 
 sub openAliases() {
     	my $map = shift;
-	tie %aliases,DB_Hash,"$SurveyDBPath/${map}_survey.db",O_RDONLY,0666 ;
+	tie %aliases,"DB_File","$SurveyDBPath/${map}_survey.db",O_RDONLY,0666,$DB_HASH ;
 }
