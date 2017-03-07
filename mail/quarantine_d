@@ -148,14 +148,14 @@ if ($cmd =~ /^release([IRS]) (.*)$/)
 if ($cmd =~ /^get ([a-z]+)$/)
 {
 	$what = $1;
-	if (defined($file->{$what}))
+	if (defined($files->{$what}))
 	{
 		$res = getFile($what);
 		print $res;
 	}
 	else
 	{
-		print "unknown entity\n";
+		print "$what: unknown entity\n";
 	}
 	exit 0;
 }
@@ -163,7 +163,7 @@ if ($cmd =~ /^get ([a-z]+)$/)
 if ($cmd =~ /^test$/)
 {
 	$jsonobj = JSON->new->allow_nonref;
-	print jsonobj->encode($files);
+	print $jsonobj->encode($files);
 	exit 0;
 }
 
