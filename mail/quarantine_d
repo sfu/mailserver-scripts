@@ -101,38 +101,103 @@ $cmd =~ s/[\r\n]+//;
 #}
 
 
-    # Human-readable queue summary
-    if ($cmd eq "queue")
-    {
+# Human-readable queue summary
+if ($cmd eq "queue")
+{
 	$result = `mailq -qQ`;
 	print $result;
 	exit 0;
-    }
+}
 
-    # Summary for Xymon/big Brother
-    # First line is number of quarantine'd msgs
-    # If non-zero, include summary of users, msgs, recipients, subjects
-    #
-    # Now overloaded to handle json output for a web friendly version. Parse QF files to populate hash for json
-    # QF looks like this:
-    # V8
-    # T1481617801
-    # K1481665051
-    # N16
-    # P1475902
-    # I253/0/783874
-    # B7BIT
-    # MDeferred: Connection refused by sfuchildcare.ca.
-    # Fwbs
-    # $_[119.28.98.251]
-    # $rESMTP
-    # $ssawadika13.top
-    # ${daemon_flags}
-    # ${if_addr}192.168.99.109
-    # S<bounce-452-96378416-452-248@sawadika13.top>
+if ($cmd =~ "^(queuebb|queuejson)")
+{
+	printQueue($cmd);
+	exit 0;
+}
 
-    if ($cmd =~ "^(queuebb|queuejson)")
-    {
+if ($cmd =~ /^view ([\w\d]+)$/)
+{
+	# View a quarantined message
+	$qid = $1;
+	system("find /var/spool/mqueue -name hf$qid -exec cat '{}' \\;; find /var/spool/mqueue -name df$qid -exec cat '{}' \\;");
+	exit 0;
+}
+
+if ($cmd =~ /^delete (.*)$/)
+{
+	$regex = $1;
+	system("/usr/local/etc/cleanqueue -q \"$regex\"");
+	exit 0;
+}
+
+if ($cmd =~ /^deleteI ([\w\d]+)$/)
+{
+	$qid = $1;
+	system("find /var/spool/mqueue \\( -name hf$qid -o -name df$qid \\) -exec rm '{}' \\;");
+	exit 0;
+}
+
+if ($cmd =~ /^release([IRS]) (.*)$/)
+{
+	$what = $2;
+	$type = $1;
+	system("/usr/sbin/sendmail -qQ -Q -q$type$what");
+	exit 0;
+}
+
+if ($cmd =~ /^get ([a-z]+)$/)
+{
+	$what = $1;
+	if (defined($file->{$what}))
+	{
+		$res = getFile($what);
+		print $res;
+	}
+	else
+	{
+		print "unknown entity\n";
+	}
+	exit 0;
+}
+
+if ($cmd =~ /^test$/)
+{
+	$jsonobj = JSON->new->allow_nonref;
+	print jsonobj->encode($files);
+	exit 0;
+}
+
+
+print "unknown command: $cmd\n";
+exit 0;
+
+
+# Print summary for Xymon/big Brother
+# First line is number of quarantine'd msgs
+# If non-zero, include summary of users, msgs, recipients, subjects
+#
+# Now overloaded to handle json output for a web friendly version. Parse QF files to populate hash for json
+# QF looks like this:
+# V8
+# T1481617801
+# K1481665051
+# N16
+# P1475902
+# I253/0/783874
+# B7BIT
+# MDeferred: Connection refused by sfuchildcare.ca.
+# Fwbs
+# $_[119.28.98.251]
+# $rESMTP
+# $ssawadika13.top
+# ${daemon_flags}
+# ${if_addr}192.168.99.109
+# S<bounce-452-96378416-452-248@sawadika13.top>
+
+
+sub printQueue()
+{
+	my $cmd = shift;
 	$view = 0; $json = ($cmd=~"^queuejson") ? 1 : 0;
 	if ($cmd =~ /^queuebb -v (.*)$/)
 	{
@@ -154,53 +219,53 @@ $cmd =~ s/[\r\n]+//;
 	    $jsondata{messages} = [];
 	    foreach $qf (@qfiles)
 	    {
-		my (%qdata);
-		$qf =~ m/\/hf(.+)$/;
-		$qid = $1;
-		$qdata{id} = $qid;
-		push(@qids, $qid);
-		open(QF,$qf);
-		@lines = <QF>;
-		close QF;
-		foreach $l (@lines)
-		{
-		    chomp;
-		    if ($l =~ /^r/)
-		    {
-		    	$recips{$qid}++;
-		    }
-		    elsif ($l =~ /\$_(.*)/)
-		    {
-			$hosts{$1} .= "$qid:";
-			$qdata{host} = $1;
-		    }
-		    elsif ($l =~ /X-Authenticated-User: (.*)/)
-		    {
-			$qid{$1} .= "$qid:";
-			$qdata{authuser} = $1;
-		    }
-		    elsif ($l =~ /Subject: (.*)/)
-		    {
-			$subject{$qid} = $1;
-			$qdata{subject} = $1;
-		    }
-		    elsif ($l =~ /^T(\d+)$/)
-		    {
-			$qdata{ctime} = $1;
-		    }
-		    elsif ($l =~ /^K(\d+)$/)
-		    {
-			$qdata{mtime} = $1;
-		    }
-		    elsif ($l =~ /^S<?([^>]+)>?/)
-		    {
-			$qdata{sender} = $1;
-		    }
-		}
-		$qdata{recips} = $recips{$qid};
-		push(@{$jsondata{messages}},\%qdata);
-		$count++;
-		last if ($count == $limit);
+			my (%qdata);
+			$qf =~ m/\/hf(.+)$/;
+			$qid = $1;
+			$qdata{id} = $qid;
+			push(@qids, $qid);
+			open(QF,$qf);
+			@lines = <QF>;
+			close QF;
+			foreach $l (@lines)
+			{
+			    chomp;
+			    if ($l =~ /^r/)
+			    {
+			    	$recips{$qid}++;
+			    }
+			    elsif ($l =~ /\$_(.*)/)
+			    {
+					$hosts{$1} .= "$qid:";
+					$qdata{host} = $1;
+			    }
+			    elsif ($l =~ /X-Authenticated-User: (.*)/)
+			    {
+					$qid{$1} .= "$qid:";
+					$qdata{authuser} = $1;
+			    }
+			    elsif ($l =~ /Subject: (.*)/)
+			    {
+					$subject{$qid} = $1;
+					$qdata{subject} = $1;
+			    }
+			    elsif ($l =~ /^T(\d+)$/)
+			    {
+					$qdata{ctime} = $1;
+			    }
+			    elsif ($l =~ /^K(\d+)$/)
+			    {
+					$qdata{mtime} = $1;
+			    }
+			    elsif ($l =~ /^S<?([^>]+)>?/)
+			    {
+					$qdata{sender} = $1;
+			    }
+			}
+			$qdata{recips} = $recips{$qid};
+			push(@{$jsondata{messages}},\%qdata);
+			$count++;
+			last if ($count == $limit);
 	    }
 
 	    if (!$json)
@@ -242,54 +307,7 @@ $cmd =~ s/[\r\n]+//;
 	    $jsonobj = JSON->new->allow_nonref;
 	    print $jsonobj->encode(\%jsondata),"\n";
 	}
-	exit 0;
-    }
-
-    if ($cmd =~ /^view ([\w\d]+)$/)
-    {
-    	# View a quarantined message
-	$qid = $1;
-	system("find /var/spool/mqueue -name hf$qid -exec cat '{}' \\;; find /var/spool/mqueue -name df$qid -exec cat '{}' \\;");
-	exit 0;
-    }
-
-    if ($cmd =~ /^delete (.*)$/)
-    {
-	$regex = $1;
-	system("/usr/local/etc/cleanqueue -q \"$regex\"");
-	exit 0;
-    }
-
-    if ($cmd =~ /^deleteI ([\w\d]+)$/)
-    {
-	$qid = $1;
-	system("find /var/spool/mqueue \\( -name hf$qid -o -name df$qid \\) -exec rm '{}' \\;");
-	exit 0;
-    }
-
-    if ($cmd =~ /^release([IRS]) (.*)$/)
-    {
-	$what = $2;
-	$type = $1;
-	system("/usr/sbin/sendmail -qQ -Q -q$type$what");
-	exit 0;
-    }
-
-    if ($cmd =~ /^get ([a-z]+)$/)
-    {
-    	$what = $1;
-    	if (defined($file->{$what}))
-    	{
-    		$res = getFile($what);
-    		print $res;
-    	}
-    	exit 0;
-    }
-
-
-    print "unknown command: $cmd\n";
-    exit 0;
-
+}
 
 # Determine which services are running on this host by using either the 'service' or 'systemctl' command
 # Currently only supports RH/CentOS 6/7 hosts
@@ -316,10 +334,10 @@ sub getServices()
 sub getFile()
 {
 	$file = shift;
-	return "" if (!defined($files->{$file}->{$path}));
+	return "" if (!defined($files->{$file}->{'path'}));
 	if ($files->{$file}->{'type'} eq "db")
 	{
-		tie %content,"DB_File",$files->{$file}->{$path},O_RDONLY,0666,$DB_HASH;
+		tie %content,"DB_File",$files->{$file}->{'path'},O_RDONLY,0666,$DB_HASH;
 		$jsonobj = JSON->new->allow_nonref;
 	    $res = $jsonobj->encode(\%content);
 	    untie %content;
