@@ -43,10 +43,10 @@ $files = { accessdynamic =>
 			},
 			virtusertable =>
 			{
-				path => "/etc/mail/virtusertable.db",
-				type => "db",
-				access => "rwa",
-				hastext => "1", # also update text version of file (name minus the ".db" suffix)
+				path => "/etc/mail/virtusertable",
+				type => "access",  # Not the same as an access db, but accessed the same way
+				access => "ra",
+				postcmd => "/usr/bin/makemap hash /etc/mail/virtusertable.db < /etc/mail/virtusertable"
 			}, 
 			mailfromdwhitelist =>
 			{
@@ -359,4 +359,12 @@ sub getFile()
 	    $res = $jsonobj->encode(\%content);
 	}
 	return $res;
+}
+
+sub appendFile()
+{
+	my ($file,$json) = @_;
+	return "err" if (!defined($files->{$file}->{'path'}) || $files->{$file}->{'access'} !~ /a/);
+	my $jsonobj = JSON->new->allow_nonref;
+	my $data = $jsonobj->decode($json);
 }
