@@ -50,6 +50,7 @@ $BLOCKFILE = "$MAILDIR/blockfile";
 $LOCKFILE = "$LOCKDIR/passwd.lock";             
 $ALIASFILE = "$MAILDIR/aliases2";
 $TMPALIASFILE = "$ALIASFILE.new";
+$EXCHANGEUSERS = "$MAILDIR/exchangeusers";
 $MINCOUNT = 50000;
 $EXCLUDES = "wiki|admin|spam.ui5gzd9xy|ham.uzqsnwwk|test1|majordom|maillist"  ;        # Accounts that shouldn't be put into aliases map for Connect
 use constant SHELL => "/bin/sh";
@@ -72,6 +73,22 @@ elsif ($hostname =~ /stage\.its\.sfu\.ca/)
 
 exit(0) if lockInUse( $LOCKFILE );
 acquire_lock( $LOCKFILE );
+
+if (-f $EXCHANGEUSERS)
+{
+    open(EXCH,$EXCHANGEUSERS);
+    while(<EXCH>)
+    {
+	chomp;
+	($u,$a) = split(/:/);
+	$u =~ s/\s+//g;
+	$v =~ s/\s+//g;
+	$exchange{$u} = $v;
+    }
+    $have_exchange=1;
+    close EXCH;
+}
+
 my $cred = new ICATCredentials('amaint.json') -> credentialForName('amaint');
 my $TOKEN = $cred->{'token'};
 
@@ -119,6 +136,15 @@ foreach $line (split /\n/,$passwd) {
 	    # Certain accounts don't get forwarded to Connect.sfu.ca, even though they're full accounts
 	    next if ($username =~ /^($EXCLUDES)$/);
 	}
+	if ($have_exchange)
+	{
+		if ($exchange{$username}) {
+			$ALIASES{"$username\0"} = $exchange{$username},"\0";
+			print ALIASESSRC "$username: ",$exchange{$username},"\n";
+			$count++;
+			next
+		}
+	}	
         foreach $block(@blocks) {
                 if ($username eq $block) {
                         $found = 1;
