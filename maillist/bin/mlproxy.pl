@@ -146,7 +146,7 @@ if ($#subject==3 && (lc $subject[2]) eq 'confirmation') {
 		   }
 		} elsif ($cmd eq 'unsubscribe') {
 		   if (!_isMember($info, $sender)) {
-              	_sendMailFromTemplate("notMember", $sender, 'Maillistx error', $LISTNAME);
+              	_sendMailFromTemplate("notMember", $sender, 'Maillist error', $LISTNAME);
 		   } elsif ($info->{'canUnsubscribe'} || !MLMail::isLocalAddress($sender)) {
 		      	# Send unsubscribe confirmation message
 		      	syslog("notice", "sending unsubscribe $LISTNAME confirmation for $sender");
@@ -379,7 +379,7 @@ sub _isMember {
 	my @memArr = $info->members;
 	my %memHash;
 	foreach my $mem (@memArr) {
-		$memHash{$mem->{'username'}} = 1;	
+		$memHash{$mem->{'canonicalAddress'}} = 1;	
 	}
 	return exists($memHash{$sender});
 }
