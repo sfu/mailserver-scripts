@@ -80,7 +80,7 @@ if (-f $EXCHANGEUSERS)
     while(<EXCH>)
     {
 	chomp;
-	($u,$a) = split(/:/);
+	($u,$v) = split(/:/);
 	$u =~ s/\s+//g;
 	$v =~ s/\s+//g;
 	$exchange{$u} = $v;
