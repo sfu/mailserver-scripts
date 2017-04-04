@@ -101,7 +101,7 @@ if (open (BLOCK, "$BLOCKFILE"))
     {
         next if (/^#/);   # skip comment lines
         chomp;
-        push @blocks, $_;
+        $blocks{$_} = 1;
     }
     close BLOCK;
 }
@@ -128,35 +128,27 @@ $ALIASES{ "$atsign\0" } = "$atsign\0";
 
 my $count=0;
 foreach $line (split /\n/,$passwd) {
-        ($username, $pw, $uid, $gid, $gcos, $homedir, $shell) = split /:/,$line;
-        print "$username:$pw:$uid:$gid:$gcos:$homedir:$shell\n" if $main::TEST;
-        my $found = 0;
+    ($username, $pw, $uid, $gid, $gcos, $homedir, $shell) = split /:/,$line;
+    print "$username:$pw:$uid:$gid:$gcos:$homedir:$shell\n" if $main::TEST;
 	if ($INTERNAL)
 	{
 	    # Certain accounts don't get forwarded to Connect.sfu.ca, even though they're full accounts
 	    next if ($username =~ /^($EXCLUDES)$/);
 	}
-	if ($have_exchange)
-	{
-		if ($exchange{$username}) {
-			$ALIASES{"$username\0"} = $exchange{$username},"\0";
+	if ($have_exchange && $exchange{$username}) 
+    {
+			$ALIASES{"$username\0"} = $exchange{$username}."\0";
 			print ALIASESSRC "$username: ",$exchange{$username},"\n";
 			$count++;
-			next
-		}
+			next;
 	}	
-        foreach $block(@blocks) {
-                if ($username eq $block) {
-                        $found = 1;
-                        last;
-                }
-        }
-        if (!$found) {
-                #   Put entries in the aliases map
-                $ALIASES{"$username\0"} = "$username\@$mailhost\0";
-                print ALIASESSRC "$username: $username\@$mailhost\n";
-        }
-        $count++;
+    if (!$blocks{$username}) 
+    {
+            #   Put entries in the aliases map
+            $ALIASES{"$username\0"} = "$username\@$mailhost\0";
+            print ALIASESSRC "$username: $username\@$mailhost\n";
+    }
+    $count++;
 }
 
 untie (%ALIASES);
