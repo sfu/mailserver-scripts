@@ -54,7 +54,10 @@ open( USERSSRC, ">$TMPEXUSERSFILE" )
 # Process each Exchange user
 
 foreach $row ( @$ex_users ) {
-    print USERSSRC $row->{'sAMAccountName'},": ",$row->{'sAMAccountName'},"\@$DOMAIN\n";
+    # Just in case, skip any usernames with spaces in the account name
+    next if ($row->{'SamAccountName'} =~ / /);
+    # print the user's account name @ exchange domain
+    print USERSSRC $row->{'SamAccountName'},": ",$row->{'SamAccountName'},"\@$DOMAIN\n";
 }
 
 close(USERSSRC);
