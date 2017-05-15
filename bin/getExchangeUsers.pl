@@ -12,6 +12,7 @@ use FindBin;
 use lib "$FindBin::Bin/../lib";
 use LOCK;
 use ICATCredentials;
+use IO::Socket::INET;
 use Paths;
 use JSON;
 
