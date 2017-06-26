@@ -11,7 +11,8 @@ use Sys::Hostname;
 
 $hostname = hostname();
 # Strip the number and trailing domain from hostname
-$hostname =~ s/\d\..*//;
+$hostname =~ s/(\d)\..*//;
+$node = $1;
 
 sub usage()
 {
@@ -106,10 +107,15 @@ sub sendsock()
 {
 	$out = shift;
 	my $host = 1;
-  	$host = 2 if ($opts{2});
+	my $mynode = $node;
+  	if ($opts{2})
+	{
+		$host = 2;
+		$mynode = 1;
+	}
 	@res = ();
 
-	foreach $myhost (1..$host)
+	foreach $myhost ($mynode..$host)
 	{
 		$sock = IO::Socket::INET->new("$hostname$myhost.tier2.sfu.ca:6090");
 		$junk = <$sock>;	# wait for "ok" prompt
