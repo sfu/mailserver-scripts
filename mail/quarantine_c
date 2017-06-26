@@ -10,9 +10,12 @@ use IO::Socket::INET;
 use Sys::Hostname;
 
 $hostname = hostname();
+if ($hostname =~ /^[a-z]+(\d)/)
+{
+	$node = $1;
+}
 # Strip the number and trailing domain from hostname
-$hostname =~ s/(\d)\..*//;
-$node = $1;
+$hostname =~ s/\d\..*//;
 
 sub usage()
 {
@@ -106,24 +109,24 @@ NOTROOT:
 sub sendsock()
 {
 	$out = shift;
-	my $host = 1;
-	my $mynode = $node;
+	my $myhost = $node;
+	my $count = 2;
   	if ($opts{2})
 	{
-		$host = 2;
-		$mynode = 1;
+		$myhost = 1
+		$count = 1;
 	}
 	@res = ();
 
-	foreach $myhost ($mynode..$host)
-	{
+	do {
 		$sock = IO::Socket::INET->new("$hostname$myhost.tier2.sfu.ca:6090");
 		$junk = <$sock>;	# wait for "ok" prompt
 		print $sock "$out\n";
 		@res2 = <$sock>;
 		push @res, @res2;
 		close $sock;
-	}
+		$count++;
+	} while ($count < 3 );
 
 	return join("",@res);
 }

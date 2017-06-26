@@ -342,12 +342,12 @@ sub getServices()
     	$enable = 0;
     	if ($systemd)
     	{
-    		$res = `/usr/bin/systemctl status $s`;
+    		$res = `/usr/bin/systemctl status $s 2>/dev/null`;
     		$enabled = 1 if ($res =~ /Loaded: loaded.*enabled/);
     	}
     	else
     	{
-    		$res = `service $s status`;
+    		$res = `service $s status 2>/dev/null`;
     		$enabled = 1 if ($res =~ /is running/);
     	}
 	$service{$s} = $enabled;
