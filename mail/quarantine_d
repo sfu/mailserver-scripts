@@ -22,7 +22,7 @@ my %service;
 getServices();
 
 # json file describing the files we allow access to
-$files_loc = "/etc/mail/managed_files.json"
+$files_loc = "/etc/mail/managed_files.json";
 
 # default list of files we're allowed to alter remotely (if above file can't be found)
 $files = { accessdynamic =>
@@ -350,8 +350,8 @@ sub getServices()
     		$res = `service $s status`;
     		$enabled = 1 if ($res =~ /is running/);
     	}
-		$service{$s} = $enabled;
-	}
+	$service{$s} = $enabled;
+    }
 }
 
 sub getFile()
