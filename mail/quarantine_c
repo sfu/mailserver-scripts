@@ -113,7 +113,7 @@ sub sendsock()
 	my $count = 2;
   	if ($opts{2})
 	{
-		$myhost = 1
+		$myhost = 1;
 		$count = 1;
 	}
 	@res = ();
