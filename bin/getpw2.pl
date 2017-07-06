@@ -69,7 +69,7 @@ if ($hostname =~ /^pobox/)
 }
 elsif ($hostname =~ /stage\.its\.sfu\.ca/)
 {
-    $mailhost = "email-stage2.sfu.ca";
+    $mailhost = "email-stage.sfu.ca";
 }
 
 exit(0) if lockInUse( $LOCKFILE );
