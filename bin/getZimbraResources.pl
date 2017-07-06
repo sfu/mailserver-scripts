@@ -20,7 +20,7 @@ $SIG{'ALRM'} = 'EXITHANDLER';
 $ALIASFILE = "$MAILDIR/zimbraresources";
 $TMPALIASFILE = "$ALIASFILE.new";
 $LOCKFILE = "$LOCKDIR/zimbraresources.lock";	# 97/03/20 RAU
-$ALIASCMD = "/usr/bin/ssh -l zimbra mailbox1.tier2.sfu.ca /opt/sfu/getresources";
+$ALIASCMD = "/usr/bin/ssh -l zimbra jaguar7.tier2.sfu.ca /opt/sfu/getresources";
 @SANITYCHK = ("loc-sh1003","equip-lcp_planning_calendar-sh1001");	# If any of these accounts aren't found in zmprov output, bail
 
 # Get the aliases information for the active users in Zimbra .
