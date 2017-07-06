@@ -51,6 +51,7 @@ $LOCKFILE = "$LOCKDIR/passwd.lock";
 $ALIASFILE = "$MAILDIR/aliases2";
 $TMPALIASFILE = "$ALIASFILE.new";
 $EXCHANGEUSERS = "$MAILDIR/exchangeusers";
+$ZIMBRARESOURCES = "$MAILDIR/zimbraresources";
 $MINCOUNT = 50000;
 $EXCLUDES = "wiki|admin|spam.ui5gzd9xy|ham.uzqsnwwk|test1|majordom|maillist"  ;        # Accounts that shouldn't be put into aliases map for Connect
 use constant SHELL => "/bin/sh";
@@ -149,6 +150,17 @@ foreach $line (split /\n/,$passwd) {
             print ALIASESSRC "$username: $username\@$mailhost\n";
     }
     $count++;
+}
+
+if (-f $ZIMBRARESOURCES)
+{
+    open(ZIM,$ZIMBRARESOURCES);
+    while(<ZIM>)
+    {
+	chomp;
+	$ALIASES{"$_\0"} = "$_\@$mailhost\0";
+	print ALIASESSRC "$_: $_\@$mailhost\n";
+    }
 }
 
 untie (%ALIASES);
