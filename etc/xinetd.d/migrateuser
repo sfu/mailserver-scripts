@@ -7,7 +7,7 @@ service migrateuser
        	wait            = no
         user            = amaint
 	group		= amaint
-       	server          = /opt/amaint/bin/migrateuser
+       	server          = /opt/amaint/bin/migrateuser_daemon
        	log_on_failure  += USERID
         disable         = no
 	only_from       = 10.2.0.0 127.0.0.1 ::1
