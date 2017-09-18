@@ -51,6 +51,7 @@ $LOCKFILE = "$LOCKDIR/passwd.lock";
 $ALIASFILE = "$MAILDIR/aliases2";
 $TMPALIASFILE = "$ALIASFILE.new";
 $EXCHANGEUSERS = "$MAILDIR/exchangeusers";
+$MANEXCHANGEUSERS = "$MAILDIR/manualexchangeusers";
 $ZIMBRARESOURCES = "$MAILDIR/zimbraresources";
 $MINCOUNT = 50000;
 $EXCLUDES = "wiki|admin|spam.ui5gzd9xy|ham.uzqsnwwk|test1|majordom|maillist"  ;        # Accounts that shouldn't be put into aliases map for Connect
@@ -85,6 +86,21 @@ if (-f $EXCHANGEUSERS)
 	$u =~ s/\s+//g;
 	$v =~ s/\s+//g;
 	$exchange{$u} = $v;
+    }
+    $have_exchange=1;
+    close EXCH;
+}
+
+if (-f $MANEXCHANGEUSERS)
+{
+    open(EXCH,$MANEXCHANGEUSERS);
+    while(<EXCH>)
+    {
+    chomp;
+    ($u,$v) = split(/:/);
+    $u =~ s/\s+//g;
+    $v =~ s/\s+//g;
+    $exchange{$u} = $v;
     }
     $have_exchange=1;
     close EXCH;
