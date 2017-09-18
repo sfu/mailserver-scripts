@@ -54,7 +54,7 @@ if (
     exit 0;
 }
 
-if lockInUse($LOCKFILE)
+if (lockInUse($LOCKFILE))
 {
     print "err\n";
     exit 0;

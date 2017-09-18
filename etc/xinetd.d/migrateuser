@@ -1,0 +1,14 @@
+# default: on
+# This service listens for requests from mailgw1 to handle migrating users from Zimbra to Exchange
+service migrateuser
+{
+       	flags           = REUSE
+        socket_type     = stream        
+       	wait            = no
+        user            = amaint
+	group		= amaint
+       	server          = /opt/amaint/bin/migrateuser
+       	log_on_failure  += USERID
+        disable         = no
+	only_from       = 10.2.0.0 127.0.0.1 ::1
+}
