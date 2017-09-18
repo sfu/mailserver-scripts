@@ -72,7 +72,7 @@ print "ok\n";
 
 # Read cmd from remote client
 $cmd = <>;
-chomp $cmd;
+$cmd =~ s/[\r\n]+//;
 
 if ($cmd eq "clearman")
 {
