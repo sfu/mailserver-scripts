@@ -94,6 +94,10 @@ elsif ($cmd =~ /^adduser (\w+)$/)
     untie (%ALIASES);
     print "ok\n";
 }
+else {
+    print "unknown cmd $cmd\n";
+    EXITHANDLER();
+}
 
 
 
