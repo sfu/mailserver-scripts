@@ -1,0 +1,114 @@
+#!/usr/bin/perl
+#
+# migratedir : A program run via inetd to assist with migrating accounts
+#	from Zimbra to Exchange
+#
+# Add to inetd.conf as:
+# migratedir       stream tcp nowait  root    /path/to/migratedir migratedir
+# Add to services:
+# migratedir 6083/tcp
+#
+# Steve Hillman		Sep 18/2017
+
+use Socket;
+use File::Copy;
+use DB_File;
+use FindBin;
+use lib "$FindBin::Bin/../lib";
+use Paths;
+use Amaintr;
+use Utils;
+use LOCK;
+use ICATCredentials;
+use Filesys;
+
+select(STDOUT);
+$|           = 1;               # make unbuffered
+$SIG{'INT'}  = 'EXITHANDLER';
+$SIG{'HUP'}  = 'EXITHANDLER';
+$SIG{'QUIT'} = 'EXITHANDLER';
+$SIG{'PIPE'} = 'EXITHANDLER';
+$SIG{'ALRM'} = 'EXITHANDLER';
+
+# The following variables define NIS and other locations.
+$LOCKFILE = "$LOCKDIR/migrate.lock";
+$PROTODIR = "/home/proto";
+
+# Only accept connections from seymour and garibaldi
+
+$sockaddr     = 'S n a4 x8';
+$peersockaddr = getpeername(STDIN);
+my ( $family, $port, $peeraddr ) = unpack( $sockaddr, $peersockaddr );
+my ( $a, $b, $c, $d ) = unpack( 'C4', $peeraddr );
+my $peer = "$a.$b.$c.$d";
+my ( $peername, $aliases, $addrtype, $length, @addrs ) =
+  gethostbyaddr( $peeraddr, AF_INET );
+
+if (
+    !(
+           $peername =~ /^mailgw1.tier2/
+    )
+  )
+{
+    print "Bye $peername!\n";
+    exit 0;
+}
+
+if lockInUse($LOCKFILE)
+{
+    print "err\n";
+    exit 0;
+}
+acquire_lock($LOCKFILE);
+
+my $cred  = new ICATCredentials('exchange.json')->credentialForName('daemon');
+my $TOKEN = $cred->{'token'};
+$SERVER = $cred->{'server'};
+$DOMAIN = $cred->{'domain'};
+
+EXITHANDLER() if (!$DOMAIN);
+
+print "ok\n";
+
+# Read cmd from remote client
+$cmd = <>;
+chomp $cmd;
+
+if ($cmd eq "clearman")
+{
+    # Clear manual users file
+    unlink "/opt/mail/manualexchangeusers" if (-f "/opt/mail/manualexchangeusers");
+    print "ok\n";
+}
+elsif ($cmd =~ /^adduser (\w+)$/)
+{
+    $newuser = $1;
+    open(MEU,">>/opt/mail/manualexchangeusers") or EXITHANDLER();
+    print MEU "$newuser: $newuser\@$DOMAIN";
+    close MEU;
+
+    # Open the Aliases map.
+    tie( %ALIASES, "DB_File","/opt/mail/aliases2.db", O_CREAT|O_RDWR,0644,$DB_HASH )
+      || EXITHANDLER();
+    $ALIASES{"$newuser\0"} = "$newuser\@$DOMAIN\0";
+    untie (%ALIASES);
+    print "ok\n";
+}
+
+
+
+
+release_lock($LOCKFILE);
+exit 0;
+
+sub cleanexit {
+    my $msg = shift;
+    _stderr($msg);
+    release_lock($LOCKFILE);
+    exit 1;
+}
+
+sub EXITHANDLER {
+    print "Err\n";
+    &cleanexit;
+}
