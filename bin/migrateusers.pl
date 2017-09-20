@@ -1,0 +1,129 @@
+#!/usr/bin/perl
+#
+# Exchange Migration script
+# This script is intended to be run once a day from cron, but can be run manually
+# When invoked, it checks for the existence of a maillist named $maillistroot-yyyymmdd
+# where yyyymmdd is today's date. If the list exists, the membership is retrieved
+# and each user on the list is migrated from Zimbra to Exchange by following these
+# steps:
+#
+#  1. Call Exchange Daemon to enable the user's mailbox
+#  2. modify mailgw1's Aliases map to point at Exchange
+#  3. add user to manualexchangeusers file on mailgw1
+#  3. call daemon on mailgw2 to repeat above 2 steps there
+#  5. ssh to jaguar7 and execute zmprov command to disable mailbox for user on Zimbra
+#
+# Once all users are processed, add all successful ones to emailpilot-users list
+# Email final result to exchange-admins
+
+use Rest;
+use ICATCredentials;
+
+$maillistroot = "exchange-migrations-";
+
+
+my $cred  = new ICATCredentials('exchange.json')->credentialForName('daemon');
+my $TOKEN = $cred->{'token'};
+$SERVER = $cred->{'server'};
+$EXCHANGE_PORT = $cred->{'port'};
+$DOMAIN = $cred->{'domain'};
+$RESTTOKEN = $cred->{'resttoken'};
+
+$today = `date +%Y%m%d`;
+
+set_rest_token($RESTTOKEN);
+$members = members_of_maillist($maillistroot.$today);
+
+if (!$members)
+{
+	print "No users found to migrate for $today\n";
+	exit 0;
+}
+
+foreach $user (@{$members})
+{
+	print "Processing $user: ";
+	$res = process_q_cmd($SERVER, $EXCHANGE_PORT, "$TOKEN enableuser $user");
+	if ($res !~ /^ok/)
+	{
+		print $res;
+		next;
+	}
+
+	$fail=0;
+	# Exchange done, add user to Aliases on mail servers
+    if (open(MEU,">>/opt/mail/manualexchangeusers"))
+    {
+    	print MEU "$user: $user\@$DOMAIN";
+    	close MEU;
+    }
+    else
+    {
+    	$fail=1;
+    	$res = "Failed to open manualexchangeusers for writing";
+    }
+
+    if (!$fail)
+    {
+    	# Open the Aliases map.
+    	if (tie( %ALIASES, "DB_File","/opt/mail/aliases2.db", O_CREAT|O_RDWR,0644,$DB_HASH ))
+      	{
+    		$ALIASES{"$user\0"} = "$user\@$DOMAIN\0";
+    		untie (%ALIASES);
+    	}
+    	else
+    	{
+    		$fail = 1;
+    		$res = "Failed to open aliases2 database for updating";
+    	}
+    }
+
+    if (!$fail)
+    {
+    	$res = process_q_cmd("mailgw2.tier2.sfu.ca","6083","adduser $user");
+    	if ($res !~ /^ok/)
+    	{
+    		$fail = 1;
+    	}
+    }
+
+    if (!$fail)
+    {
+    	system("ssh zimbra@jaguar7.tier2.sfu.ca zmprov ma $user zimbraMailEnabled false");
+    	verify way to check for failed 'system' command.
+    }
+
+    if ($fail)
+    {
+    	print $res,"\n";
+    }
+    else
+    {
+    	print "success\n";
+    	push @usersdone,$user;
+    }
+}
+
+update emailpilot-users with @usersdone members
+
+exit 0;
+
+sub process_q_cmd()
+{
+	my ($server,$port,$cmd) = @_;
+	my $sock = IO::Socket::INET->new("$server:$port");
+	if ($sock)
+	{
+		$junk = <$sock>;	# wait for "ok" prompt
+		print $sock "$cmd\n";
+		@res = <$sock>;
+		close $sock;
+	}
+	else
+	{
+		@res = ["err Connection error: $@"];
+	}
+
+	return join("",@res);
+}
+
