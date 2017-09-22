@@ -19,6 +19,7 @@
 use IO::Socket::INET;
 use Sys::Hostname;
 use DB_File;
+use Net::SMTP;
 use FindBin;
 # Find our lib directory
 use lib "$FindBin::Bin/../lib";
@@ -37,16 +38,20 @@ if ($hostname =~ /stage/)
 }
 
 $maillistroot = "exchange-migrations-";
+$lastemailfile = "/home/hillman/sec_html/mail/lastmsg";
+$firstemailfile = "/home/hillman/sec_html/mail/firstmsg";
 
 $migratedlist = "emailpilot-users";
 $targetserver = "mailgw2.tier2.sfu.ca";
 $zimbraserver = "jaguar7.tier2.sfu.ca";
+$zimbramailserver = "connect.sfu.ca";
 
 if ($testing)
 {
     $migratedlist = "lcp-test";
     $targetserver = "localhost";
     $zimbraserver = "alpha.tier2.sfu.ca";
+    $zimbramailserver = "email-stage.sfu.ca";
 }
 
 
@@ -126,8 +131,13 @@ foreach $user (@{$members})
     	}
     }
 
+    $recip = $testing ? "hillman\@sfu.ca" : "$user\@sfu.ca";
+
     if (!$fail)
     {
+        # Send user their last msg to Zimbra
+        $rc = send_message($zimbramailserver,$lastemailfile,$recip);
+        sleep 1;
         $cmd = "ssh zimbra\@$zimbraserver zmprov ma $user zimbraMailEnabled false";
     	system($cmd);
         if ($? != 0)
@@ -137,11 +147,17 @@ foreach $user (@{$members})
             $rc = $? >> 8;
             $res = "ssh to Zimbra had rc=$rc. Error: $!"
         }
+        send_message("localhost",$firstemailfile,$recip) if ($testing || !$fail);
     }
 
     if ($fail)
     {
     	print $res,"\n";
+        if ($testing)
+        {
+            print "$user failed, but running in testing mode, so marking as successful\n";
+            push @usersdone,$user;
+        }
     }
     else
     {
@@ -214,6 +230,35 @@ sub restClient {
                                       $cred->{password},$main::TEST);
     }
     return $restClient;
+}
+
+sub send_message()
+{
+    my ($server,$msgfile,$recipient) = @_;
+    my $msg;
+
+
+    open(IN,$msgfile) or return undef;
+    while(<IN>)
+    {
+        s/%%user/$user/g;
+        $msg .= $_;
+    }
+    close IN;
+
+    my $smtp = Net::SMTP->new($server);
+    return undef unless $smtp;
+    my $rc = $smtp->mail('amaint\@sfu.ca');
+    if ($rc)
+    {
+        $rc = $smtp->to($recipient);
+        if ($rc)
+        {
+            $rc = $smtp->data([$msg]);
+        }
+        $smtp->quit();
+    }
+    return $rc;
 }
 
 
