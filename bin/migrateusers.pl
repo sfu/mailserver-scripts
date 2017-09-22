@@ -45,7 +45,7 @@ $zimbraserver = "jaguar7.tier2.sfu.ca";
 if ($testing)
 {
     $migratedlist = "lcp-test";
-    $targetserver = $hostname;
+    $targetserver = "localhost";
     $zimbraserver = "alpha.tier2.sfu.ca";
 }
 
@@ -93,7 +93,7 @@ foreach $user (@{$members})
 	# Exchange done, add user to Aliases on mail servers
     if (open(MEU,">>/opt/mail/manualexchangeusers"))
     {
-    	print MEU "$user: $user\@$DOMAIN";
+    	print MEU "$user: $user\@$DOMAIN\n";
     	close MEU;
     }
     else
