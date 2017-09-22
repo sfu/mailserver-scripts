@@ -194,13 +194,16 @@ foreach $user (@usersdone)
     }
 }
 
-print "Error updating $migratedlist. The folowing users were migrated but not added to the list.\n";
-print "They must be manually added before another migration is run\n";
-
-foreach $user (@failed)
+if (scalar(@failed))
 {
-    print $user,"\n";
-} 
+    print "Error updating $migratedlist. The folowing users were migrated but not added to the list.\n";
+    print "They must be manually added before another migration is run\n";
+
+    foreach $user (@failed)
+    {
+        print $user,"\n";
+    } 
+}
 
 exit 0;
 
