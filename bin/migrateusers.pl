@@ -17,6 +17,7 @@
 # Email final result to exchange-admins
 
 use IO::Socket::INET;
+use Sys::Hostname;
 use FindBin;
 # Find our lib directory
 use lib "$FindBin::Bin/../lib";
@@ -26,7 +27,26 @@ use ICATCredentials;
 use lib "$FindBin::Bin/../maillist/lib";
 use MLRestClient;
 
+$hostname = hostname();
+if ($hostname =~ /stage/)
+{
+    # Running on a Staging host. Run in test mode
+    print "Running on a Staging host. Running in Test mode\n";
+    $testing=1;
+}
+
 $maillistroot = "exchange-migrations-";
+
+$migratedlist = "emailpilot-users";
+$targetserver = "mailgw2.tier2.sfu.ca";
+$zimbraserver = "jaguar7.tier2.sfu.ca";
+
+if ($testing)
+{
+    $migratedlist = "lcp-test";
+    $targetserver = $hostname;
+    $zimbraserver = "alpha.tier2.sfu.ca";
+}
 
 
 my $cred  = new ICATCredentials('exchange.json')->credentialForName('daemon');
@@ -36,7 +56,6 @@ $EXCHANGE_PORT = $cred->{'port'};
 $DOMAIN = $cred->{'domain'};
 $RESTTOKEN = $cred->{'resttoken'};
 
-$today = `date +%Y%m%d`;
 
 if (defined($ARGV[0]))
 {
@@ -46,6 +65,7 @@ if (defined($ARGV[0]))
 }
 else
 {
+    $today = `date +%Y%m%d`;
     set_rest_token($RESTTOKEN);
     $members = members_of_maillist($maillistroot.$today);
 }
@@ -64,7 +84,8 @@ foreach $user (@{$members})
 	if ($res !~ /^ok/)
 	{
 		print $res;
-		next;
+		next if (!$testing);
+        print "Test mode so continuing anyway\n";
 	}
 
 	$fail=0;
@@ -97,7 +118,7 @@ foreach $user (@{$members})
 
     if (!$fail)
     {
-    	$res = process_q_cmd("mailgw2.tier2.sfu.ca","6083","adduser $user");
+    	$res = process_q_cmd($targetserver,"6083","adduser $user");
     	if ($res !~ /^ok/)
     	{
     		$fail = 3;
@@ -106,7 +127,8 @@ foreach $user (@{$members})
 
     if (!$fail)
     {
-    	system("ssh zimbra@jaguar7.tier2.sfu.ca zmprov ma $user zimbraMailEnabled false");
+        $cmd = "ssh zimbra\@$zimbraserver zmprov ma $user zimbraMailEnabled false");
+    	system($cmd);
         if ($? != 0)
         {
             # We had a problem
@@ -127,10 +149,16 @@ foreach $user (@{$members})
     }
 }
 
+if (!scalar(@usersdone))
+{
+    print "No users successfully processed. Exiting\n";
+    exit 0;
+}
+
 # Rob sprinkled his Maillist client library with 'die's and 'exit's, so wrap in eval statements
 eval {
     $client = restClient();
-    $ml = $client->getMaillistByName("emailpilot-users") if (defined($client))
+    $ml = $client->getMaillistByName($migratedlist) if (defined($client))
 };
 
 foreach $user (@usersdone)
@@ -149,7 +177,7 @@ foreach $user (@usersdone)
     }
 }
 
-print "Error updating emailpilot-users. The folowing users were migrated but not added to the list.\n";
+print "Error updating $migratedlist. The folowing users were migrated but not added to the list.\n";
 print "They must be manually added before another migration is run\n";
 
 foreach $user (@failed)
