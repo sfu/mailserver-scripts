@@ -127,7 +127,7 @@ foreach $user (@{$members})
 
     if (!$fail)
     {
-        $cmd = "ssh zimbra\@$zimbraserver zmprov ma $user zimbraMailEnabled false");
+        $cmd = "ssh zimbra\@$zimbraserver zmprov ma $user zimbraMailEnabled false";
     	system($cmd);
         if ($? != 0)
         {
