@@ -248,7 +248,7 @@ sub send_message()
 
     my $smtp = Net::SMTP->new($server);
     return undef unless $smtp;
-    my $rc = $smtp->mail('amaint\@sfu.ca');
+    my $rc = $smtp->mail('amaint@sfu.ca');
     if ($rc)
     {
         $rc = $smtp->to($recipient);
