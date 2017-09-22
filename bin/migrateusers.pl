@@ -16,8 +16,14 @@
 # Once all users are processed, add all successful ones to emailpilot-users list
 # Email final result to exchange-admins
 
+use FindBin;
+# Find our lib directory
+use lib "$FindBin::Bin/../lib";
 use Rest;
 use ICATCredentials;
+# Find the maillist lib directory
+use lib "$FindBin::Bin/../maillist/lib";
+use MLRestClient;
 
 $maillistroot = "exchange-migrations-";
 
@@ -31,8 +37,18 @@ $RESTTOKEN = $cred->{'resttoken'};
 
 $today = `date +%Y%m%d`;
 
-set_rest_token($RESTTOKEN);
-$members = members_of_maillist($maillistroot.$today);
+if (defined($ARGV[0]))
+{
+    $member = $ARGV[0];
+    print "Specified user '$member' on command line. Just processing that user\n";
+    $members = [$member];
+}
+else
+{
+    set_rest_token($RESTTOKEN);
+    $members = members_of_maillist($maillistroot.$today);
+}
+
 
 if (!$members)
 {
@@ -73,7 +89,7 @@ foreach $user (@{$members})
     	}
     	else
     	{
-    		$fail = 1;
+    		$fail = 2;
     		$res = "Failed to open aliases2 database for updating";
     	}
     }
@@ -83,14 +99,20 @@ foreach $user (@{$members})
     	$res = process_q_cmd("mailgw2.tier2.sfu.ca","6083","adduser $user");
     	if ($res !~ /^ok/)
     	{
-    		$fail = 1;
+    		$fail = 3;
     	}
     }
 
     if (!$fail)
     {
     	system("ssh zimbra@jaguar7.tier2.sfu.ca zmprov ma $user zimbraMailEnabled false");
-    	verify way to check for failed 'system' command.
+        if ($? != 0)
+        {
+            # We had a problem
+            $fail = 4;
+            $rc = $? >> 8;
+            $res = "ssh to Zimbra had rc=$rc. Error: $!"
+        }
     }
 
     if ($fail)
@@ -104,7 +126,35 @@ foreach $user (@{$members})
     }
 }
 
-update emailpilot-users with @usersdone members
+# Rob sprinkled his Maillist client library with 'die's and 'exit's, so wrap in eval statements
+eval {
+    $client = restClient();
+    $ml = $client->getMaillistByName("emailpilot-users") if (defined($client))
+};
+
+foreach $user (@usersdone)
+{
+    $mem=0;
+    if (defined($client) && defined($ml))
+    {
+        eval {
+            $mem = $client->addMember($ml,$user)
+        };
+    }
+    if (!$mem)
+    {
+        # Something went wrong, user didn't add
+        push @failed,$user;
+    }
+}
+
+print "Error updating emailpilot-users. The folowing users were migrated but not added to the list.\n";
+print "They must be manually added before another migration is run\n";
+
+foreach $user (@failed)
+{
+    print $user,"\n";
+} 
 
 exit 0;
 
@@ -126,4 +176,14 @@ sub process_q_cmd()
 
 	return join("",@res);
 }
+
+sub restClient {
+    if (!defined $restClient) {
+       my $cred = new ICATCredentials('maillist.json')->credentialForName('robert');
+       $restClient = new MLRestClient($cred->{username}, 
+                                      $cred->{password},$main::TEST);
+    }
+    return $restClient;
+}
+
 

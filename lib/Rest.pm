@@ -7,7 +7,7 @@ require Exporter;
 
 use HTTP::Request::Common qw(GET POST PUT DELETE);
 use LWP::UserAgent;
-use JSON::Parse 'json_to_perl';
+use JSON;
 
 # Set to 1 to see all content that's received from Canvas
 $debug=0;
@@ -94,6 +94,7 @@ sub rest_to_restserver
 
     if ($resp->is_success) {
 	my $jsonref;
+	my $jsonobj = JSON->new->allow_nonref;
 	my $json = $resp->decoded_content;
 	print "$json\n" if $debug;
 
@@ -102,7 +103,7 @@ sub rest_to_restserver
 		print "No JSON returned from call to $uri\n" if $debug;
 	}
 	eval {
-		$jsonref = json_to_perl($json);
+		$jsonref = $jsonobj->decode($json);
 	};
 	if ($@) {
 		print STDERR "Error parsing JSON from Canvas for $uri\n";
