@@ -34,26 +34,6 @@ $SIG{'ALRM'} = 'EXITHANDLER';
 $LOCKFILE = "$LOCKDIR/migrate.lock";
 $PROTODIR = "/home/proto";
 
-# Only accept connections from seymour and garibaldi
-
-$sockaddr     = 'S n a4 x8';
-$peersockaddr = getpeername(STDIN);
-my ( $family, $port, $peeraddr ) = unpack( $sockaddr, $peersockaddr );
-my ( $a, $b, $c, $d ) = unpack( 'C4', $peeraddr );
-my $peer = "$a.$b.$c.$d";
-my ( $peername, $aliases, $addrtype, $length, @addrs ) =
-  gethostbyaddr( $peeraddr, AF_INET );
-
-if (
-    !(
-           $peername =~ /^mailgw1.tier2/
-    )
-  )
-{
-    print "Bye $peername!\n";
-    exit 0;
-}
-
 if (lockInUse($LOCKFILE))
 {
     print "err\n";
