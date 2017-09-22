@@ -18,6 +18,7 @@
 
 use IO::Socket::INET;
 use Sys::Hostname;
+use DB_File;
 use FindBin;
 # Find our lib directory
 use lib "$FindBin::Bin/../lib";
