@@ -16,6 +16,7 @@
 # Once all users are processed, add all successful ones to emailpilot-users list
 # Email final result to exchange-admins
 
+use IO::Socket::INET;
 use FindBin;
 # Find our lib directory
 use lib "$FindBin::Bin/../lib";
