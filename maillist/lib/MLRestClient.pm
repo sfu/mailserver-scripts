@@ -91,7 +91,7 @@ GET:
       _sleep();
       next GET;
    }
-   #print STDOUT "$mldata\n";
+   print STDOUT "$mldata\n" if $main::VERBOSE;
    return $mldata if $txt;
    $json = JSON->new->allow_nonref;
    return $json->decode( $mldata );
@@ -131,7 +131,7 @@ POST:
       _sleep();
       next POST;
    }
-   print STDOUT "$mldata\n";
+   print STDOUT "$mldata\n" if $main::VERBOSE;
    return undef unless $mldata;
    $json = JSON->new->allow_nonref;
    return $json->decode( $mldata );
@@ -145,7 +145,7 @@ sub _httpPut {
     
     $json = JSON->new->allow_nonref;
     my $content = $json->encode( $contentHash );
-    print "PUT content: $content\n";
+    print "PUT content: $content\n" if $main::VERBOSE;
 
     my $ua = LWP::UserAgent->new;
 	$ua->timeout(5);
@@ -159,7 +159,6 @@ PUT:
       # I have the handler set MLD::TERM, then test it after the call to put.
       $MLUpdt::TERM = 0;
       #my $response = $ua->put($url,'If-Match' => $etag, Content => $formParams);
-       print STDOUT "Invoking PUT\n";
       my $response = $ua->request(PUT $url, 'If-Match' => $etag, 
                                             'Content' => $content ); 
       
@@ -169,7 +168,6 @@ PUT:
 #       my @suff = $ua->_process_colonic_headers(\@parameters, (ref($parameters[1]) ? 2 : 1));
 #       print STDOUT "Invoking PUT\n";
 #       $response = $ua->request( HTTP::Request::Common::PUT( @parameters ), @suff );
-      print STDOUT "Back from PUT\n";
 
       if ($response->is_success) {
         $main::sleepCounter = 0;
@@ -186,7 +184,7 @@ PUT:
       _sleep();
       next PUT;
    }
-   print STDOUT "$mldata\n";
+   print STDOUT "$mldata\n" if $main::VERBOSE;
    $json = JSON->new->allow_nonref;
    return $json->decode( $mldata );
 }
@@ -227,7 +225,7 @@ DEL:
       _sleep();
       next DEL;
    }
-   #print STDOUT "$mldata\n";
+   print STDOUT "$mldata\n" if $main::VERBOSE;
    return $mldata;
 }
 
