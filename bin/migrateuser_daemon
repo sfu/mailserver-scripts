@@ -86,6 +86,7 @@ elsif ($cmd =~ /^undo (\w+)$/)
     }
     close NMEU;
     close MEU;
+    rename "/opt/mail/manualexchangeusers.new", "/opt/mail/manualexchangeusers";
 
     # Open the Aliases map.
     tie( %ALIASES, "DB_File","/opt/mail/aliases2.db", O_CREAT|O_RDWR,0644,$DB_HASH )
