@@ -104,7 +104,7 @@ foreach $user (@{$members})
     # Exchange done, add user to Aliases on mail servers
     # We'll do the remote server first, as there's much less chance of a local failure
     $resp = process_q_cmd($targetserver,"6083","adduser $user");
-    if ($res !~ /^ok/)
+    if ($resp !~ /^ok/)
     {
         $fail |= 4;
         $res = "Error talking to mailgw2. "
