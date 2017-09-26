@@ -158,7 +158,7 @@ foreach $user (@{$members})
         # Send user their last msg to Zimbra
         $rc = send_message($zimbramailserver,$lastemailfile,$recip);
         sleep 1;
-        $cmd = "ssh zimbra\@$zimbraserver zmprov ma $user zimbraMailEnabled false";
+        $cmd = "ssh zimbra\@$zimbraserver zmprov ma $user zimbraMailStatus disabled";
     	system($cmd);
         if ($? != 0)
         {
