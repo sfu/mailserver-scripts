@@ -74,6 +74,27 @@ elsif ($cmd =~ /^adduser (\w+)$/)
     untie (%ALIASES);
     print "ok\n";
 }
+elsif ($cmd =~ /^undo (\w+)$/)
+{
+    $newuser = $1;
+
+    open(MEU,"/opt/mail/manualexchangeusers") or EXITHANDLER();
+    open(NMEU,">>/opt/mail/manualexchangeusers.new") or EXITHANDLER();
+    while(<MEU>)
+    {
+        print NMEU if (!/$newuser/);
+    }
+    close NMEU;
+    close MEU;
+
+    # Open the Aliases map.
+    tie( %ALIASES, "DB_File","/opt/mail/aliases2.db", O_CREAT|O_RDWR,0644,$DB_HASH )
+      || EXITHANDLER();
+    # A bit brute force, but we'll let the regular cron'd aliases rebuild replace this entry
+    delete $ALIASES{"$newuser\0"};
+    untie (%ALIASES);
+    print "ok\n";
+}
 else {
     print "unknown cmd $cmd\n";
     EXITHANDLER();

@@ -83,30 +83,46 @@ if (!$members)
 	exit 0;
 }
 
+# We can live with these commands failing, so don't worry about return codes
+unlink("/opt/mail/manualexchangeusers");
+process_q_cmd($targetserver,"6083","clearman");
+
 foreach $user (@{$members})
 {
 	print "Processing $user: ";
 	$res = process_q_cmd($SERVER, $EXCHANGE_PORT, "$TOKEN enableuser $user");
 	if ($res !~ /^ok/)
 	{
+        # Failed to enable Exchange account. We can't proceed further for this user
 		print $res;
 		next if (!$testing);
         print "Test mode so continuing anyway\n";
 	}
 
 	$fail=0;
-	# Exchange done, add user to Aliases on mail servers
-    if (open(MEU,">>/opt/mail/manualexchangeusers"))
-    {
-    	print MEU "$user: $user\@$DOMAIN\n";
-    	close MEU;
-    }
-    else
-    {
-    	$fail=1;
-    	$res = "Failed to open manualexchangeusers for writing";
-    }
 
+    # Exchange done, add user to Aliases on mail servers
+    # We'll do the remote server first, as there's much less chance of a local failure
+    $resp = process_q_cmd($targetserver,"6083","adduser $user");
+    if ($res !~ /^ok/)
+    {
+        $fail |= 4;
+        $res = "Error talking to mailgw2. "
+    }
+    
+    if (!$fail)
+    {
+        if (open(MEU,">>/opt/mail/manualexchangeusers"))
+        {
+        	print MEU "$user: $user\@$DOMAIN\n";
+        	close MEU;
+        }
+        else
+        {
+        	$fail = 2;
+        	$res = "Failed to open manualexchangeusers for writing. ";
+        }
+    }
     if (!$fail)
     {
     	# Open the Aliases map.
@@ -117,21 +133,25 @@ foreach $user (@{$members})
     	}
     	else
     	{
-    		$fail = 2;
-    		$res = "Failed to open aliases2 database for updating";
+    		$fail |= 1;
+    		$res .= "Failed to open aliases2 database for updating";
+            # We can actually ignore this error because the flat file got updated, so next time aliases are rebuilt, they'll pick up the change
     	}
-    }
+    }    
 
-    if (!$fail)
+    if ($fail > 1)
     {
-    	$res = process_q_cmd($targetserver,"6083","adduser $user");
-    	if ($res !~ /^ok/)
-    	{
-    		$fail = 3;
-    	}
+        # Non-ignorable error happened - back out of Exchange account enable
+        $resp = process_q_cmd($SERVER, $EXCHANGE_PORT, "$TOKEN disableuser $user");
+        $res .= $resp;
+        if ($fail < 4)
+        {
+            # Change to mailgw2 succeeded. We need to back that out
+            $resp = process_q_cmd($targetserver,"6083","undo $user");
+        }
     }
 
-    $recip = $testing ? "hillman\@sfu.ca" : "$user\@sfu.ca";
+    $recip = $testing ? "hillman" : "$user";
 
     if (!$fail)
     {
@@ -145,7 +165,7 @@ foreach $user (@{$members})
             # We had a problem
             $fail = 4;
             $rc = $? >> 8;
-            $res = "ssh to Zimbra had rc=$rc. Error: $!"
+            $res = "ssh to Zimbra had rc=$rc."
         }
         send_message("localhost",$firstemailfile,$recip) if ($testing || !$fail);
     }
@@ -254,7 +274,7 @@ sub send_message()
     my $rc = $smtp->mail('amaint@sfu.ca');
     if ($rc)
     {
-        $rc = $smtp->to($recipient);
+        $rc = $smtp->to("$recipient\@sfu.ca");
         if ($rc)
         {
             $rc = $smtp->data([$msg]);
