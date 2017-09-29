@@ -87,9 +87,16 @@ if (!$members)
 unlink("/opt/mail/manualexchangeusers");
 process_q_cmd($targetserver,"6083","clearman");
 
-foreach $user (@{$members})
+foreach $u (@{$members})
 {
 	print "Processing $user: ";
+    $resource = 0;
+    $user = $u;
+    if ($user =~ /\@resource.sfu.ca/)
+    {
+        $resource = 1;
+        $user =~ s/\@.*//;
+    }
 	$res = process_q_cmd($SERVER, $EXCHANGE_PORT, "$TOKEN enableuser $user");
 	if ($res !~ /^ok/)
 	{
@@ -156,7 +163,7 @@ foreach $user (@{$members})
     if (!$fail)
     {
         # Send user their last msg to Zimbra
-        $rc = send_message($zimbramailserver,$lastemailfile,$recip);
+        $rc = send_message($zimbramailserver,$lastemailfile,$recip) if (!$resource);
         sleep 1;
         $cmd = "ssh zimbra\@$zimbraserver zmprov ma $user zimbraMailStatus disabled";
     	system($cmd);
@@ -167,7 +174,7 @@ foreach $user (@{$members})
             $rc = $? >> 8;
             $res = "ssh to Zimbra had rc=$rc."
         }
-        send_message("localhost",$firstemailfile,$recip) if ($testing || !$fail);
+        send_message("localhost",$firstemailfile,$recip) if (!$resource && ($testing || !$fail));
     }
 
     if ($fail)
@@ -182,7 +189,7 @@ foreach $user (@{$members})
     else
     {
     	print "success\n";
-    	push @usersdone,$user;
+    	push @usersdone,$u;
     }
 }
 
