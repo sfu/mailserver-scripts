@@ -8,6 +8,7 @@
 #
 
 use Getopt::Std;
+use Sys::Hostname;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 use LOCK;
