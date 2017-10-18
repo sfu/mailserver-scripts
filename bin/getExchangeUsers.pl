@@ -51,7 +51,7 @@ $DOMAIN = $cred->{'domain'};
 
 if ($staging)
 {
-	my $ex_users = process_q_cmd_json($SERVER,"$TOKEN getusers");
+	$ex_users = process_q_cmd_json($SERVER,"$TOKEN getusers");
 
 	print $ex_users if $main::TEST;
 	if ( $ex_users =~ /^err / ) {
