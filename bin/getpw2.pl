@@ -60,6 +60,9 @@ use constant SHELL => "/bin/sh";
 # Target mail host for users
 # If we're running on mailgw1/2, it's Connect. If we're on a mailgate (pobox) node, it's "mailhost.sfu.ca" (which points to mailgw1/2)
 # And if we're on the staging server, point at email-stage
+
+## NOTE NOTE NOTE: once all users are on Exchange, change mailhost to "exchange.sfu.ca". We'll rely on a Sendmail rule
+# to rewrite it back to "sfu.ca"
 $mailhost = "connect.sfu.ca";
 $INTERNAL=1;  # running on an internal mail router
 my $hostname = hostname();

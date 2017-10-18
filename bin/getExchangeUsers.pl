@@ -32,20 +32,55 @@ $LOCKFILE     = "$ALIASESDIR/exchangeusers.lock";
 getopts('t') or die("Bad options");
 $main::TEST = $opt_t ? $opt_t : 0;
 
+my $hostname = hostname();
+if ($hostname =~ /stage/)
+{
+   $staging=1
+}
+
+
 acquire_lock($LOCKFILE);
 my $cred  = new ICATCredentials('exchange.json')->credentialForName('daemon');
 my $TOKEN = $cred->{'token'};
 $SERVER = $cred->{'server'};
 $DOMAIN = $cred->{'domain'};
 
-my $ex_users = process_q_cmd_json($SERVER,"$TOKEN getusers");
+# In the staging environment, we fetch our users directly from Exchange
+# but in prod this won't scale, so use all members of emailpilot-users* lists
 
-print $ex_users if $main::TEST;
-if ( $ex_users =~ /^err / ) {
-    cleanexit($ex_users);
+if ($staging)
+{
+	my $ex_users = process_q_cmd_json($SERVER,"$TOKEN getusers");
+
+	print $ex_users if $main::TEST;
+	if ( $ex_users =~ /^err / ) {
+	    cleanexit($ex_users);
+	}
+	unless ($ex_users) {
+	    cleanexit("Exchange returned empty Users response.");
+	}
 }
-unless ($ex_users) {
-    cleanexit("Exchange returned empty Users response.");
+else
+{
+	$ex_users = [];
+	foreach $list ("emailpilot-users","emailpilot-users2")
+	{
+		if (-f "/opt/mail/maillist2/files/$list/members")
+		{
+			open(IN1,"/opt/mail/maillist2/files/$list/members") or cleanexit("Can't load members of $list");
+			while(<IN1>)
+			{
+				($user,$junk) = split(/\s+/,$_,2);
+				if ($user =~ /\@/)
+				{
+					next if ($user !~ /\@resource.sfu.ca/);
+					$user =~ s/\@resource.sfu.ca//;
+				}
+				push(@$ex_users,$user);
+			}
+			close IN1;
+		}
+	}
 }
 
 open( USERSSRC, ">$TMPEXUSERSFILE" )
@@ -55,9 +90,16 @@ open( USERSSRC, ">$TMPEXUSERSFILE" )
 
 foreach $row ( @$ex_users ) {
     # Just in case, skip any usernames with spaces in the account name
-    next if ($row->{'SamAccountName'} =~ / /);
+    next if ($staging && $row->{'SamAccountName'} =~ / /);
     # print the user's account name @ exchange domain
-    print USERSSRC $row->{'SamAccountName'},": ",$row->{'SamAccountName'},"\@$DOMAIN\n";
+    if ($staging)
+    {
+    	print USERSSRC $row->{'SamAccountName'},": ",$row->{'SamAccountName'},"\@$DOMAIN\n";
+    }
+    else
+    {
+    	print USERSSRC "$row: $row\@exchange.sfu.ca\n";
+    }
 }
 
 close(USERSSRC);
