@@ -294,7 +294,7 @@ sub members_of_maillist()
     $listname = shift;
     eval {
         $client = restClient();
-        $ml = $client->getMaillistByName($listname)
+        $ml = $client->getMaillistByName($listname);
         if (defined($ml))
         {
             my @members = $ml->members();
@@ -311,10 +311,10 @@ sub members_of_maillist()
             }
         }
     };
-    return @memarray;
     if ($@) {
         print STDERR "Caught error from MLRest client. Aborting";
         return undef;
     }
+    return @memarray;
 }
 
