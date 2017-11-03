@@ -23,7 +23,6 @@ use Net::SMTP;
 use FindBin;
 # Find our lib directory
 use lib "$FindBin::Bin/../lib";
-use Rest;
 use ICATCredentials;
 # Find the maillist lib directory
 use lib "$FindBin::Bin/../maillist/lib";
@@ -72,7 +71,6 @@ if (defined($ARGV[0]))
 else
 {
     $today = `date +%Y%m%d`;
-    set_rest_token($RESTTOKEN);
     $members = members_of_maillist($maillistroot.$today);
 }
 
@@ -291,4 +289,32 @@ sub send_message()
     return $rc;
 }
 
+sub members_of_maillist()
+{
+    $listname = shift;
+    eval {
+        $client = restClient();
+        $ml = $client->getMaillistByName($listname)
+        if (defined($ml))
+        {
+            my @members = $ml->members();
+            return undef unless @members;
+            if ($ml->memberCount() != scalar @members) 
+            {
+                print STDERR "Member count returned from MLRest doesn't match maillist member count. Aborting";
+                return undef;
+            }
+            foreach $member (@members) 
+            {
+                next unless defined $member;
+                push @memarray, $member->canonicalAddress();
+            }
+        }
+    };
+    return @memarray;
+    if ($@) {
+        print STDERR "Caught error from MLRest client. Aborting";
+        return undef;
+    }
+}
 
