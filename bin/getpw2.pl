@@ -84,11 +84,11 @@ if (-f $EXCHANGEUSERS)
     open(EXCH,$EXCHANGEUSERS);
     while(<EXCH>)
     {
-	chomp;
-	($u,$v) = split(/:/);
-	$u =~ s/\s+//g;
-	$v =~ s/\s+//g;
-	$exchange{$u} = $v;
+    	chomp;
+    	($u,$v) = split(/:/);
+    	$u =~ s/\s+//g;
+    	$v =~ s/\s+//g;
+    	$exchange{$u} = $v;
     }
     $have_exchange=1;
     close EXCH;
@@ -99,11 +99,11 @@ if (-f $MANEXCHANGEUSERS)
     open(EXCH,$MANEXCHANGEUSERS);
     while(<EXCH>)
     {
-    chomp;
-    ($u,$v) = split(/:/);
-    $u =~ s/\s+//g;
-    $v =~ s/\s+//g;
-    $exchange{$u} = $v;
+        chomp;
+        ($u,$v) = split(/:/);
+        $u =~ s/\s+//g;
+        $v =~ s/\s+//g;
+        $exchange{$u} = $v;
     }
     $have_exchange=1;
     close EXCH;
@@ -157,16 +157,16 @@ foreach $line (split /\n/,$passwd) {
 	}
 	if ($have_exchange && $exchange{$username}) 
     {
-			$ALIASES{"$username\0"} = $exchange{$username}."\0";
-			print ALIASESSRC "$username: ",$exchange{$username},"\n";
-			$count++;
-			next;
+		$ALIASES{"$username\0"} = $exchange{$username}."\0";
+		print ALIASESSRC "$username: ",$exchange{$username},"\n";
+		$count++;
+		next;
 	}	
     if (!$blocks{$username}) 
     {
-            #   Put entries in the aliases map
-            $ALIASES{"$username\0"} = "$username\@$mailhost\0";
-            print ALIASESSRC "$username: $username\@$mailhost\n";
+        #   Put entries in the aliases map
+        $ALIASES{"$username\0"} = "$username\@$mailhost\0";
+        print ALIASESSRC "$username: $username\@$mailhost\n";
     }
     $count++;
 }
@@ -176,9 +176,15 @@ if (-f $ZIMBRARESOURCES)
     open(ZIM,$ZIMBRARESOURCES);
     while(<ZIM>)
     {
-	chomp;
-	$ALIASES{"$_\0"} = "$_\@$mailhost\0";
-	print ALIASESSRC "$_: $_\@$mailhost\n";
+        chomp;
+        if ($have_exchange && $exchange{$_}) 
+        {
+            $ALIASES{"$_\0"} = $exchange{$_}."\0";
+            print ALIASESSRC "$_: ",$exchange{$_},"\n";
+            next;
+        }   
+        $ALIASES{"$_\0"} = "$_\@$mailhost\0";
+        print ALIASESSRC "$_: $_\@$mailhost\n";
     }
 }
 
