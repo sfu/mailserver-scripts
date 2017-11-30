@@ -81,7 +81,7 @@ my %seen = ();
 $main::md5 = Digest::MD5->new;
 my $msg  = Mail::Internet->new( STDIN );
 my $headers = $msg->head();
-my $sender = _getSender($headers);
+$sender = _getSender($headers);
 my $subjecthdr = $headers->get("Subject");
 if ($subjecthdr=~/^[rR][eE]:/) {
 	$subjecthdr = substr($subjecthdr,3);
@@ -332,7 +332,7 @@ UPD:
                 sleep 30;
                 redo UPD;
             }
-            my $msg = "_subscribeViaEmail failed for $token, $listname, $address:$@";
+            my $msg = "_subscribeViaEmail failed for $LISTNAME, $sender :$@";
 			_sendMail( "amaint\@sfu.ca", 'mlproxy error', $msg );
 		}
         last;
@@ -350,7 +350,7 @@ UPD:
                 sleep 30;
                 redo UPD;
             }
-            my $msg = "_unsubscribeViaEmail failed for $token, $listname, $address:$@";
+            my $msg = "_unsubscribeViaEmail failed for $LISTNAME, $sender :$@";
 			_sendMail( "amaint\@sfu.ca", 'mlproxy error', $msg );
 		}
         last;
