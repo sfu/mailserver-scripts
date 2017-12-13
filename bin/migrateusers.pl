@@ -71,6 +71,7 @@ if (defined($ARGV[0]))
 else
 {
     $today = `date +%Y%m%d`;
+    chomp $today;
     $members = members_of_maillist($maillistroot.$today);
 }
 
@@ -292,6 +293,7 @@ sub send_message()
 sub members_of_maillist()
 {
     $listname = shift;
+    $memarray = [];
     eval {
         $client = restClient();
         $ml = $client->getMaillistByName($listname);
@@ -307,7 +309,7 @@ sub members_of_maillist()
             foreach $member (@members) 
             {
                 next unless defined $member;
-                push @memarray, $member->canonicalAddress();
+                push @{$memarray}, $member->canonicalAddress();
             }
         }
     };
@@ -315,6 +317,6 @@ sub members_of_maillist()
         print STDERR "Caught error from MLRest client. Aborting";
         return undef;
     }
-    return @memarray;
+    return $memarray;
 }
 
