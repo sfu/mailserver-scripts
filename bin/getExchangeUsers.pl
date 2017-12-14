@@ -109,7 +109,7 @@ close(USERSSRC);
 
 my ($dev,$inode,$mode,$nlink,$uid,$gid,$rdev,
     $size,$atime,$mtime,$ctime,$blksize,$blocks) = stat($TMPEXUSERSFILE);
-cleanexit("$TMPEXUSERSFILE < low water mark: $size") if $size < 150;
+cleanexit("$TMPEXUSERSFILE < low water mark: $size") if $size < 32;
 
 # Move the temporary maps and files to their permanent places.
 open( JUNK, "mv $TMPEXUSERSFILE $EXUSERSFILE|" );
