@@ -64,7 +64,7 @@ elsif ($cmd =~ /^adduser (\w+)$/)
 {
     $newuser = $1;
     open(MEU,">>/opt/mail/manualexchangeusers") or EXITHANDLER();
-    print MEU "$newuser: $newuser\@$DOMAIN";
+    print MEU "$newuser: $newuser\@$DOMAIN\n";
     close MEU;
 
     # Open the Aliases map.
@@ -82,7 +82,7 @@ elsif ($cmd =~ /^undo (\w+)$/)
     open(NMEU,">>/opt/mail/manualexchangeusers.new") or EXITHANDLER();
     while(<MEU>)
     {
-        print NMEU if (!/$newuser/);
+        print NMEU if (!/^$newuser:/);
     }
     close NMEU;
     close MEU;
