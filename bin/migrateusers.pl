@@ -88,7 +88,7 @@ process_q_cmd($targetserver,"6083","clearman");
 
 foreach $u (@{$members})
 {
-	print "Processing $user: ";
+	print "Processing $u: ";
     $resource = 0;
     $user = $u;
     if ($user =~ /\@resource.sfu.ca/)
