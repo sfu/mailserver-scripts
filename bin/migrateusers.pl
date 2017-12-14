@@ -133,7 +133,15 @@ foreach $u (@{$members})
     	# Open the Aliases map.
     	if (tie( %ALIASES, "DB_File","/opt/mail/aliases2.db", O_CREAT|O_RDWR,0644,$DB_HASH ))
       	{
-    		$ALIASES{"$user\0"} = "$user\@$DOMAIN\0";
+            if ($ALIASES{"$user\0"} eq "$user\@$DOMAIN\0")
+            {
+                $fail |=1 ;
+                $res .= "User already migrated.";
+            }
+            else
+            {
+    		    $ALIASES{"$user\0"} = "$user\@$DOMAIN\0";
+            }
     		untie (%ALIASES);
     	}
     	else
