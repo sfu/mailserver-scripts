@@ -225,7 +225,7 @@ sub printQueue()
 {
 	my $cmd = shift;
 	$view = 0; $json = ($cmd=~"^(queuejson|mailq)") ? 1 : 0;
-	$ftype = ($cmd eq "mailq") ? "qf" : "hf";
+	$ftype = ($cmd =~ "^mailq") ? "qf" : "hf";
 	if ($cmd =~ /^queuebb -v (.*)$/)
 	{
 	    $view = $1;
@@ -236,7 +236,7 @@ sub printQueue()
 	    $limit = 0 if ($limit < 0);
 	}
 	$domaintype = 0;
-	if ($cmq =~ /mailq (R|S)(.*)$/)
+	if ($cmd =~ /mailq (R|S)(.*)$/)
 	{
 		$domaintype = ($1 eq "R") ? 1 : 2;
 		$domainfilter = $2;
@@ -314,7 +314,7 @@ sub printQueue()
 				push(@{$jsondata{messages}},\%qdata);
 				$count++;
 			}
-			last if ($count == $limit);
+			last if ($limit && $count == $limit);
 	    }
 
 	    if (!$json)
