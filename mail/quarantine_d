@@ -301,7 +301,7 @@ sub printQueue()
 			    {
 					$qdata{sender} = $1;
 			    }
-			    elsif ($l =~ /^M(.*)$/
+			    elsif ($l =~ /^M(.*)$/)
 			    {
 			    	$qdata{reason} = $1;
 			    }
