@@ -353,6 +353,7 @@ sub printQueue()
 	}
 	if ($json)
 	{
+		$jsondata{total} = scalar(@{$jsondata{messages}}) if ($domaintype);
 	    $jsonobj = JSON->new->allow_nonref;
 	    print $jsonobj->encode(\%jsondata),"\n";
 	}
