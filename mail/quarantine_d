@@ -130,7 +130,7 @@ if ($cmd =~ /^view ([\w\d]+)$/)
 	exit 0;
 }
 
-if ($cmd =~ /^delete (.*)$/)
+if ($cmd =~ /^delete ([\w\d\.\+\?\*\[\]\-\^\$@%\(\)=:;,]+)$/)
 {
 	$regex = $1;
 	system("/usr/local/etc/cleanqueue -q \"$regex\"");
@@ -144,7 +144,7 @@ if ($cmd =~ /^deleteI ([\w\d]+)$/)
 	exit 0;
 }
 
-if ($cmd =~ /^release([IRS]) (.*)$/)
+if ($cmd =~ /^release([IRS]) ([\w\d\.\+\?\*\[\]\-\^\$@%\(\)=:;,]+)$/)
 {
 	$what = $2;
 	$type = $1;
