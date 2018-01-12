@@ -116,7 +116,7 @@ if ($cmd eq "queue")
 	exit 0;
 }
 
-if ($cmd =~ "^(queuebb|queuejson)")
+if ($cmd =~ "^(queuebb|queuejson|mailq)")
 {
 	printQueue($cmd);
 	exit 0;
@@ -199,6 +199,9 @@ exit 0;
 # First line is number of quarantine'd msgs
 # If non-zero, include summary of users, msgs, recipients, subjects
 #
+# Overloaded to handle non-quarantined queues, but only in json format. Optionally specify "R|Sdomain" to
+# limit output to receiving or sending domain
+#
 # Now overloaded to handle json output for a web friendly version. Parse QF files to populate hash for json
 # QF looks like this:
 # V8
@@ -221,7 +224,8 @@ exit 0;
 sub printQueue()
 {
 	my $cmd = shift;
-	$view = 0; $json = ($cmd=~"^queuejson") ? 1 : 0;
+	$view = 0; $json = ($cmd=~"^(queuejson|mailq)") ? 1 : 0;
+	$ftype = ($cmd eq "mailq") ? "qf" : "hf";
 	if ($cmd =~ /^queuebb -v (.*)$/)
 	{
 	    $view = $1;
@@ -231,7 +235,13 @@ sub printQueue()
 	    $limit = $1;
 	    $limit = 0 if ($limit < 0);
 	}
-	@qfiles = `find /var/spool/mqueue -name "hf*" -print`;
+	$domaintype = 0;
+	if ($cmq =~ /mailq (R|S)(.*)$/)
+	{
+		$domaintype = ($1 eq "R") ? 1 : 2;
+		$domainfilter = $2;
+	}
+	@qfiles = `find /var/spool/mqueue -name "${ftype}*" -print`;
 	$total = @qfiles;
 	print "$total\n" if (!$json);
 	my %jsondata;
@@ -243,19 +253,26 @@ sub printQueue()
 	    foreach $qf (@qfiles)
 	    {
 			my (%qdata);
-			$qf =~ m/\/hf(.+)$/;
+			my $recips = 0;
+			$qf =~ m/\/$ftype(.+)$/;
 			$qid = $1;
-			$qdata{id} = $qid;
 			push(@qids, $qid);
 			open(QF,$qf);
 			@lines = <QF>;
 			close QF;
+			# domaintype is non-zero if we're searching for a specific sender or recipient
+			$found = ($domaintype) ? 0 : 1;
 			foreach $l (@lines)
 			{
 			    chomp;
 			    if ($l =~ /^r/)
 			    {
-			    	$recips{$qid}++;
+			    	$recips++;
+			    	$found = 1 if (!$found && $domaintype == 1 && $l =~ /$domainfilter$/);
+			    }
+			    elsif (!$found && $domaintype == 2 && $l =~ /^S.*$domainfilter>$/)
+			    {
+			    	$found = 1;
 			    }
 			    elsif ($l =~ /\$_(.*)/)
 			    {
@@ -284,10 +301,19 @@ sub printQueue()
 			    {
 					$qdata{sender} = $1;
 			    }
+			    elsif ($l =~ /^M(.*)$)/
+			    {
+			    	$qdata{reason} = $1;
+			    }
 			}
-			$qdata{recips} = $recips{$qid};
-			push(@{$jsondata{messages}},\%qdata);
-			$count++;
+			if ($found)
+			{
+				$qdata{id} = $qid;
+				$recips{$qid} = $recips;
+				$qdata{recips} = $recips;
+				push(@{$jsondata{messages}},\%qdata);
+				$count++;
+			}
 			last if ($count == $limit);
 	    }
 
