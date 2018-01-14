@@ -15,6 +15,19 @@ use JSON;
 use DB_File;
 use GDBM_File;
 
+# Only needed on mailgw1 to communicate with Exchange
+# In order to prevent errors on other hosts where the libs aren't present, 
+# wrap the 'use' commands in an Eval and only run on mailgw1
+$hostname = hostname();
+if ($hostname =~ /^mailgw1/)
+{
+	eval "use IO::Socket::INET"
+	eval "use FindBin"
+	# Find our lib directory
+	eval "use lib "\"$FindBin::Bin/../lib\""
+	eval "use ICATCredentials"
+}
+
 # List of services that could be running on this host. We use this to
 # determine which commands to allow
 my %service;
@@ -149,6 +162,18 @@ if ($cmd =~ /^release([IRS]) ([\w\d\.\+\?\*\[\]\-\^\$@%\(\)=:;,]+)$/)
 	$what = $2;
 	$type = $1;
 	system("/usr/sbin/sendmail -qQ -Q -q$type$what");
+	exit 0;
+}
+
+if ($hostname =~ /^mailgw1/ && $cmd =~ /^sendexchange (getqueue|getdatabases)$/)
+{
+	$excmd = $1;
+	$cred  = new ICATCredentials('exchange.json')->credentialForName('daemon');
+	$TOKEN = $cred->{'token'};
+	$SERVER = $cred->{'server'};
+	$EXCHANGE_PORT = $cred->{'port'};
+	$res = process_q_cmd($SERVER, $EXCHANGE_PORT, "$TOKEN $excmd");
+	print $res;
 	exit 0;
 }
 
@@ -484,4 +509,23 @@ sub load_files()
 	$json_data = <IN>;
 	$files = from_json($json_data);
 	return;
+}
+
+sub process_exch_cmd()
+{
+	my ($server,$port,$cmd) = @_;
+	my $sock = IO::Socket::INET->new("$server:$port");
+	if ($sock)
+	{
+		$junk = <$sock>;	# wait for "ok" prompt
+		print $sock "$cmd\n";
+		@res = <$sock>;
+		close $sock;
+	}
+	else
+	{
+		@res = ["err Connection error: $@"];
+	}
+
+	return join("",@res);
 }
