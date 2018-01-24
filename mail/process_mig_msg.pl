@@ -14,7 +14,7 @@ $found = 0;
 while(<>)
 {
 	$msg .= $_;
-	if (!$found && /Subject: CM365: User '([\w\d]+)' (started|completed) ([\w, ]+)/)
+	if (!$found && /Subject: CM365: User ([\w\d]+) (started|completed) for ([\w, ]+)/)
 	{
 		$mailbox = $1;
 		$status = $2;
@@ -41,7 +41,7 @@ if ($found)
 	
 	if    ($what =~ /Calendar/) { $file = "calendar";}
 	elsif ($what =~ /Recent/) { $file = "recent";}
-	elsif ($what =~ /all /) { $file = "all";}
+	elsif ($what =~ /All /) { $file = "all";}
 	else { die "Unrecognized migration: $what";}
 
 	open(OUT,">$outdir/$file") or die "Can't open $outdir/$file for writing\n";
