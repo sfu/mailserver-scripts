@@ -24,7 +24,7 @@ if ($hostname =~ /^mailgw1/)
 	eval "use IO::Socket::INET"
 	eval "use FindBin"
 	# Find our lib directory
-	eval "use lib "\"$FindBin::Bin/../lib\""
+	eval "use lib \"$FindBin::Bin/../lib\""
 	eval "use ICATCredentials"
 }
 
