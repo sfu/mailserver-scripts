@@ -14,6 +14,8 @@ use Getopt::Std;
 use JSON;
 use DB_File;
 use GDBM_File;
+use Sys::Hostname;
+
 
 # Only needed on mailgw1 to communicate with Exchange
 # In order to prevent errors on other hosts where the libs aren't present, 
