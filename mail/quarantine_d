@@ -20,6 +20,7 @@ use lib "$FindBin::Bin/../lib";
 use IO::Socket::INET;
 use ICATCredentials;
 
+$hostname = hostname();
 
 # List of services that could be running on this host. We use this to
 # determine which commands to allow
