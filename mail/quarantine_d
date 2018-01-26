@@ -166,7 +166,7 @@ if ($hostname =~ /^mailgw1/ && $cmd =~ /^sendexchange (getqueue|getdatabases)$/)
 	$TOKEN = $cred->{'token'};
 	$SERVER = $cred->{'server'};
 	$EXCHANGE_PORT = $cred->{'port'};
-	$res = process_q_cmd($SERVER, $EXCHANGE_PORT, "$TOKEN $excmd");
+	$res = process_exch_cmd($SERVER, $EXCHANGE_PORT, "$TOKEN $excmd");
 	print $res;
 	exit 0;
 }
