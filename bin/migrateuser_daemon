@@ -60,7 +60,7 @@ if ($cmd eq "clearman")
     unlink "/opt/mail/manualexchangeusers" if (-f "/opt/mail/manualexchangeusers");
     print "ok\n";
 }
-elsif ($cmd =~ /^adduser (\w+)$/)
+elsif ($cmd =~ /^adduser ([\w\d\-\_]+)$/)
 {
     $newuser = $1;
     open(MEU,">>/opt/mail/manualexchangeusers") or EXITHANDLER();
@@ -74,7 +74,7 @@ elsif ($cmd =~ /^adduser (\w+)$/)
     untie (%ALIASES);
     print "ok\n";
 }
-elsif ($cmd =~ /^undo (\w+)$/)
+elsif ($cmd =~ /^undo ([\w\d\-\_]+)$/)
 {
     $newuser = $1;
 
