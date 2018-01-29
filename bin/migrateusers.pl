@@ -65,8 +65,16 @@ $RESTTOKEN = $cred->{'resttoken'};
 if (defined($ARGV[0]))
 {
     $member = $ARGV[0];
-    print "Specified user '$member' on command line. Just processing that user\n";
-    $members = [$member];
+    if ($member =~ /-/ && $member !~ /^(equip-|loc-)/)
+    {
+        print "Specified list '$member' on command line. Processing list members\n";
+        $members = members_of_maillist($member);
+    }
+    else
+    {
+        print "Specified user '$member' on command line. Just processing that user\n";
+        $members = [$member];
+    }
 }
 else
 {
@@ -96,6 +104,18 @@ foreach $u (@{$members})
         $resource = 1;
         $user =~ s/\@.*//;
     }
+
+    if (tie( %ALIASES, "DB_File","/opt/mail/aliases2.db", O_CREAT|O_RDWR,0644,$DB_HASH ))
+    {
+        if ($ALIASES{"$user\0"} eq "$user\@$DOMAIN\0")
+        {
+            print "User already migrated.";
+            untie %ALIASES;
+            next;
+        }
+        untie %ALIASES;
+    }
+
 	$res = process_q_cmd($SERVER, $EXCHANGE_PORT, "$TOKEN enableuser $user");
 	if ($res !~ /^ok/)
 	{
