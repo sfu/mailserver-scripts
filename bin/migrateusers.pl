@@ -406,7 +406,7 @@ sub add_message()
     my ($user,$msgfile) = @_;
 
     my $msg;
-    if !(open( IN, "<$msgfile" ))
+    if (!(open( IN, "<$msgfile" )))
     {
         print "Failed to open $msgfile: $!";
         return 0;
@@ -441,7 +441,8 @@ sub add_message()
 
 # Modify arbitrary attributes in a Zimbra account. 
 # pass in attributes as an array of key=value strings
-sub modify_zimbra_account {
+sub modify_zimbra_account() 
+{
     my ($account,$attrs) = @_;
 
     if (! SFUZimbra::get_auth_token( \%session ) ) {
