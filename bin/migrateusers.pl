@@ -28,6 +28,23 @@ use ICATCredentials;
 use lib "$FindBin::Bin/../maillist/lib";
 use MLRestClient;
 
+# Zimbra SOAP libraries for doing SOAP to Zimbra
+use lib "/opt/sfu";
+use LWP::UserAgent;
+use XmlElement;
+use XmlDoc;
+use Soap;
+use SFUZimbra;
+use SFUZimbraCommon;
+use SFUZimbraClient;
+use zimbrapilot;
+
+$me = `whoami`;
+if ($me !~ /amaint/)
+{
+    die "You must be user 'amaint' to run this script";
+}
+
 $hostname = hostname();
 if ($hostname =~ /stage/)
 {
@@ -60,6 +77,18 @@ $SERVER = $cred->{'server'};
 $EXCHANGE_PORT = $cred->{'port'};
 $DOMAIN = $cred->{'domain'};
 $RESTTOKEN = $cred->{'resttoken'};
+
+# Setup for using Zimbra SOAP
+my %session = (
+    url      => $ZIMBRA_SOAP_URL,
+    domain   => $ZIMBRA_DOMAIN,
+    domain_key  => $DOMAIN_KEY,
+    MAILNS   => 'urn:zimbraMail',
+    ACCTNS   => 'urn:zimbraAccount',
+    soap     => $Soap::Soap12,
+    trace    => 0,
+);
+
 
 
 if (defined($ARGV[0]))
@@ -121,8 +150,22 @@ foreach $u (@{$members})
 	{
         # Failed to enable Exchange account. We can't proceed further for this user
 		print $res;
-		next if (!$testing);
-        print "Test mode so continuing anyway\n";
+        if ($res =~ /kerberos/i)
+        {
+            # Weird Kerberos error. Try sleeping for a bit and retrying
+            sleep 30;
+            $res = process_q_cmd($SERVER, $EXCHANGE_PORT, "$TOKEN enableuser $user");
+            if ($res !~ /^ok/)
+            {
+                print "Second attempt, giving up and moving on: $res\n";
+                next;
+            }
+        }
+        else
+        {
+            next if (!$testing);
+            print "Test mode so continuing anyway\n";
+        }
 	}
 
 	$fail=0;
@@ -189,19 +232,20 @@ foreach $u (@{$members})
 
     if (!$fail)
     {
-        # Send user their last msg to Zimbra
-        $rc = send_message($zimbramailserver,$lastemailfile,$recip) if (!$resource);
-        sleep 1;
-        $cmd = "ssh zimbra\@$zimbraserver zmprov ma $user zimbraMailStatus disabled";
-    	system($cmd);
-        if ($? != 0)
-        {
+        if (!(modify_zimbra_account($user,"zimbraMailStatus=disabled")));
+    	{
             # We had a problem
             $fail = 4;
-            $rc = $? >> 8;
-            $res = "ssh to Zimbra had rc=$rc."
         }
-        send_message("localhost",$firstemailfile,$recip) if (!$resource && ($testing || !$fail));
+        else
+        {
+            # Send user their msgs
+            if (!$resource)
+            {
+                add_message($recip,$lastemailfile);
+                send_message("localhost",$firstemailfile,$recip);
+            }
+        }
     }
 
     if ($fail)
@@ -261,6 +305,10 @@ if (scalar(@failed))
 
 exit 0;
 
+
+
+
+
 sub process_q_cmd()
 {
 	my ($server,$port,$cmd) = @_;
@@ -298,7 +346,7 @@ sub send_message()
     open(IN,$msgfile) or return undef;
     while(<IN>)
     {
-        s/%%user/$user/g;
+        s/%%user/$recipient/g;
         $msg .= $_;
     }
     close IN;
@@ -347,4 +395,92 @@ sub members_of_maillist()
     }
     return $memarray;
 }
+
+# Add a message to a Zimbra mailbox. This puts the message directly into the
+# mailbox using SOAP, bypassing any MTAs. If the message has no Message-ID,
+# none is generated (same with Date header). This may render the message
+# invisible to some mail clients (it does render it invisible to the
+# migration tool we're using)
+sub add_message()
+{
+    my ($user,$msgfile) = @_;
+
+    my $msg;
+    if !(open( IN, "<$msgfile" ))
+    {
+        print "Failed to open $msgfile: $!";
+        return 0;
+    }
+    sysread(IN, $msg, 99999999);
+    close(IN);
+    $msg =~ s/%%user/$recipient/g;
+    $msg =~ s/\r\n/\n/g;
+    
+    my %attributes = (
+        'l'         => '/Inbox',
+        'noICal'    => '1',
+        'f'     => 'u'
+    );
+
+    if ( !SFUZimbraClient::get_auth_token_by_preauth( \%session, $user ) ) {
+        print "Failed to auth to Zimbra";
+        return 0;
+    }
+
+    my $msg_id = SFUZimbraClient::add_message(\%session, \%attributes, $msg);
+    if ($msg_id)
+    {
+        print "Added Zimbra msg. message id: $msg_id\n";
+    }
+    else
+    {
+        print "Failed to add msg for $user. Response: $msg\n";
+    }
+    return $msg_id;
+}
+
+# Modify arbitrary attributes in a Zimbra account. 
+# pass in attributes as an array of key=value strings
+sub modify_zimbra_account {
+    my ($account,@attrs) = @_;
+
+    if (! SFUZimbra::get_auth_token( \%session ) ) {
+        print "Failed to auth to Zimbra SOAP interface\n";
+        return 0;
+    } 
+
+    my $qualified_name = SFUZimbraCommon::qualify_name( $account, $session{'domain'} );
+
+    my $acct_id = SFUZimbra::get_account_id( \%session, $qualified_name );
+    if ( !$acct_id ) {
+        print "Account $account is not in zimbra.\n";
+        return 0;
+    } else {
+        my @options;
+        foreach my $change (@attrs)
+        {
+            if ($change !~ /[\w]+=/)
+            {
+                print "Attributes not in right format. Format is \"attr=value[,attr2=value2]\"";
+                return 0;
+            }
+            my ($key,$value) = split(/=/,$change,2);
+            push(@options, {$key => $value});
+        }
+
+        if ( scalar @options > 0 ) {
+            if ( !$trial_run ) {
+                my $success = SFUZimbra::modify_account( \%session, $acct_id, @options );
+                if ( !$success )
+                {
+                    print "Failed to modify Zimbra account\n";
+                    return 0;
+                }
+            }
+        }
+
+        return 1;
+    }
+}
+
 
