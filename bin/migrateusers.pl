@@ -232,7 +232,7 @@ foreach $u (@{$members})
 
     if (!$fail)
     {
-        if (!(modify_zimbra_account($user,"zimbraMailStatus=disabled")));
+        if (!(modify_zimbra_account($user,["zimbraMailStatus=disabled"])))
     	{
             # We had a problem
             $fail = 4;
@@ -442,7 +442,7 @@ sub add_message()
 # Modify arbitrary attributes in a Zimbra account. 
 # pass in attributes as an array of key=value strings
 sub modify_zimbra_account {
-    my ($account,@attrs) = @_;
+    my ($account,$attrs) = @_;
 
     if (! SFUZimbra::get_auth_token( \%session ) ) {
         print "Failed to auth to Zimbra SOAP interface\n";
@@ -457,7 +457,7 @@ sub modify_zimbra_account {
         return 0;
     } else {
         my @options;
-        foreach my $change (@attrs)
+        foreach my $change (@$attrs)
         {
             if ($change !~ /[\w]+=/)
             {
