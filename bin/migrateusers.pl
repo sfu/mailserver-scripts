@@ -79,10 +79,8 @@ $DOMAIN = $cred->{'domain'};
 $RESTTOKEN = $cred->{'resttoken'};
 
 # Setup for using Zimbra SOAP
-my %session = (
+my %sessionMail = (
     url      => $ZIMBRA_SOAP_URL,
-    username => $ZIMBRA_USERNAME,
-    password => $ZIMBRA_PASSWORD,
     domain   => $ZIMBRA_DOMAIN,
     domain_key  => $DOMAIN_KEY,
     MAILNS   => 'urn:zimbraMail',
@@ -90,6 +88,18 @@ my %session = (
     soap     => $Soap::Soap12,
     trace    => 0,
 );
+
+my %sessionAdmin = (
+        url      => $ZIMBRA_ADMIN_URL,
+        username => $ZIMBRA_USERNAME,
+        password => $ZIMBRA_PASSWORD,
+        domain   => $ZIMBRA_DOMAIN,
+        MAILNS   => 'urn:zimbraAdmin',
+        ACCTNS   => 'urn:zimbraAdmin',
+        soap     => $Soap::Soap12,
+        trace    => 0,
+);
+
 
 
 
@@ -440,12 +450,12 @@ sub add_message()
         'f'     => 'u'
     );
 
-    if ( !SFUZimbraClient::get_auth_token_by_preauth( \%session, $user ) ) {
+    if ( !SFUZimbraClient::get_auth_token_by_preauth( \%sessionMail, $user ) ) {
         print "Failed to auth to Zimbra";
         return 0;
     }
 
-    my $msg_id = SFUZimbraClient::add_message(\%session, \%attributes, $msg);
+    my $msg_id = SFUZimbraClient::add_message(\%sessionMail, \%attributes, $msg);
     if ($msg_id)
     {
         print "Added Zimbra msg. message id: $msg_id\n";
@@ -463,14 +473,14 @@ sub modify_zimbra_account()
 {
     my ($account,$attrs) = @_;
 
-    if (! SFUZimbra::get_auth_token( \%session ) ) {
+    if (! SFUZimbra::get_auth_token( \%sessionAdmin ) ) {
         print "Failed to auth to Zimbra SOAP interface\n";
         return 0;
     } 
 
-    my $qualified_name = SFUZimbraCommon::qualify_name( $account, $session{'domain'} );
+    my $qualified_name = SFUZimbraCommon::qualify_name( $account, $sessionAdmin{'domain'} );
 
-    my $acct_id = SFUZimbra::get_account_id( \%session, $qualified_name );
+    my $acct_id = SFUZimbra::get_account_id( \%sessionAdmin, $qualified_name );
     if ( !$acct_id ) {
         print "Account $account is not in zimbra.\n";
         return 0;
@@ -489,7 +499,7 @@ sub modify_zimbra_account()
 
         if ( scalar @options > 0 ) {
             if ( !$trial_run ) {
-                my $success = SFUZimbra::modify_account( \%session, $acct_id, @options );
+                my $success = SFUZimbra::modify_account( \%sessionAdmin, $acct_id, @options );
                 if ( !$success )
                 {
                     print "Failed to modify Zimbra account\n";
