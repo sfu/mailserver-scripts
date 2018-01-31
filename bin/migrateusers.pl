@@ -175,7 +175,7 @@ foreach $u (@{$members})
     $resp = process_q_cmd($targetserver,"6083","adduser $user");
     if ($resp !~ /^ok/)
     {
-        $fail |= 4;
+        $fail |= 8;
         $res = "Error talking to mailgw2. "
     }
     
@@ -188,7 +188,7 @@ foreach $u (@{$members})
         }
         else
         {
-        	$fail = 2;
+        	$fail |= 4;
         	$res = "Failed to open manualexchangeusers for writing. ";
         }
     }
@@ -216,36 +216,52 @@ foreach $u (@{$members})
     	}
     }    
 
+    if (!$fail)
+    {
+        if (!(modify_zimbra_account($user,["zimbraMailStatus=disabled"])))
+        {
+            # We had a problem
+            $fail |= 2;
+        }
+    }
+
     if ($fail > 1)
     {
         # Non-ignorable error happened - back out of Exchange account enable
         $resp = process_q_cmd($SERVER, $EXCHANGE_PORT, "$TOKEN disableuser $user");
         $res .= $resp;
-        if ($fail < 4)
+        if ($fail < 9)
         {
             # Change to mailgw2 succeeded. We need to back that out
             $resp = process_q_cmd($targetserver,"6083","undo $user");
+        }
+        if ($fail == 2)
+        {
+            # Failed to communicate with Zimbra, so Aliases were changed. Undo them
+            if (tie( %ALIASES, "DB_File","/opt/mail/aliases2.db", O_CREAT|O_RDWR,0644,$DB_HASH ))
+            {
+                $ALIASES{"$user\0"} = "$user\@$zimbramailserver\0";
+                untie (%ALIASES);
+            }
+            if (open(MEU,"/opt/mail/manualexchangeusers") && open(NMEU,">/opt/mail/manualexchangeusers.new"))
+            {
+                while(<MEU>)
+                {
+                    print NMEU if (!/^$user:/);
+                }
+                close NMEU;
+                close MEU;
+                rename "/opt/mail/manualexchangeusers.new", "/opt/mail/manualexchangeusers";
+            }
         }
     }
 
     $recip = $testing ? "hillman" : "$user";
 
-    if (!$fail)
+    if (!$fail && !$resource)
     {
-        if (!(modify_zimbra_account($user,["zimbraMailStatus=disabled"])))
-    	{
-            # We had a problem
-            $fail = 4;
-        }
-        else
-        {
-            # Send user their msgs
-            if (!$resource)
-            {
-                add_message($recip,$lastemailfile);
-                send_message("localhost",$firstemailfile,$recip);
-            }
-        }
+        add_message($recip,$lastemailfile);
+        send_message("localhost",$firstemailfile,$recip);
     }
 
     if ($fail)
