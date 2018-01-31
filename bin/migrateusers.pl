@@ -81,6 +81,8 @@ $RESTTOKEN = $cred->{'resttoken'};
 # Setup for using Zimbra SOAP
 my %session = (
     url      => $ZIMBRA_SOAP_URL,
+    username => $ZIMBRA_USERNAME,
+    password => $ZIMBRA_PASSWORD,
     domain   => $ZIMBRA_DOMAIN,
     domain_key  => $DOMAIN_KEY,
     MAILNS   => 'urn:zimbraMail',
