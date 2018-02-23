@@ -165,6 +165,8 @@ foreach $u (@{$members})
         if ($res =~ /kerberos/i)
         {
             # Weird Kerberos error. Try sleeping for a bit and retrying
+            # Force remote daemon to restart to get a new Exchange PS session
+            process_q_cmd($SERVER, $EXCHANGE_PORT, "forcequit");
             sleep 30;
             $res = process_q_cmd($SERVER, $EXCHANGE_PORT, "$TOKEN enableuser $user");
             if ($res !~ /^ok/)
