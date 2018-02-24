@@ -112,6 +112,8 @@ while (1) {
     	if (!$frame)
     	{
     		# Put code in here to check if there are outstanding status responses that we need to look for 
+    		#
+    		#
     		$counter++;
     		if ($counter >= $maxtimeouts)
     		{
@@ -156,61 +158,52 @@ sub process_msg
     $xpc = XML::LibXML::XPathContext->new($xdom);
 
     # See if we have a syncLogin message
-    if ($xpc->exists("/syncLogin"))
+    if ($xpc->exists("/compromisedLogin"))
     {
-	my (%params);
-	# Add code in here to only sync certain account types?
+    	$msgtype = $xpc->findvalue("/compromisedLogin/messageType");
+    	$username = $xpc->findvalue("/compromisedLogin/username");
+    	$serial = $xpc->findvalue("/compromisedLogin/serial");
 
-	# Add code in here to process deletes differently?
+    	if ($msgtype =~ /request/i)
+    	{
+    		# New compromised account
+    		$rcCas = clearCASsessions($username) if ($xpc->findvalue("/compromisedLogin/settings/clearCASsessions") !~ /false/i);
+    		$rcAmaint = resetPassword($username) if ($xpc->findvalue("/compromisedLogin/settings/resetPassword") !~ /false/i);
+    		$rcZimbra = resetZimbraSettings($username) if ($xpc->findvalue("/compromisedLogin/settings/resetZimbraSettings") !~ /false/i);
+    		emailUser($username) if ($xpc->findvalue("/compromisedLogin/settings/emailUser") !~ /false/i);
 
-	# We handle user adds by packaging them up as a "CSV" and using the SIS_ID import API
-	$csv = "user_id,login_id,password,first_name,last_name,short_name,email,status\n";
-
-	$login_id = $xpc->findvalue("/syncLogin/username");
-	$user_id = $xpc->findvalue("/syncLogin/person/sfuid");
-
-	if ($user_id < 1)
-	{
-		$user_id = $xpc->findvalue("/syncLogin/person/externalID");
-	}
-
-	# If the user has a modern SSHA password, pass it into Canvas. Canvas won't use it,
-	# but if we later pass in a different string, Canvas will invalidate any existing
-	# sessions for that user (forced logout)
-	$password = $xpc->findvalue("/syncLogin/login/sshaPassword");
-	if ($password =~ /^{SSHA}/)
-	{
-		$password =~ s/{SSHA}//;
-	}
-	else
-	{
-		$password = "";
-	}
-
-	$first_name = $xpc->findvalue("/syncLogin/person/firstnames");
-	$last_name = $xpc->findvalue("/syncLogin/person/surname");
-	$short_name = $xpc->findvalue("/syncLogin/person/preferredName") || "";
-	$short_name .= " $last_name" if ($short_name ne "");
-	$email = $login_id . "\@sfu.ca";
-
-	# Status can be either "active" or "deleted". We may use "deleted" in the future
-	$status = "active";
-
-	$csv .= "$user_id,$login_id,$password,$first_name,$last_name,$short_name,$email,$status";
-
-	print `date`, " Processing update for user $login_id\n$csv\n";
-	$json = rest_to_canvas("POSTRAW","/api/v1/accounts/2/sis_imports.json?extension=csv",$csv);
-	return 0 if (!defined($json));
-
+    		# Save the state to handle the response later
+    		$msg{$serial} = {};
+    		$msg{$serial}->{time} = time();
+    		$msg{$serial}->{status} = $rcCas . $rcZimbra . $rcAmaint;
+    		$msg{$serial}->{username} = $username;
+    		$emailAdmins = "true";
+    		$emailAdmins = "false" if ($xpc->findvalue("/compromisedLogin/settings/emailAdmins") =~ /false/i);
+    		$msg{$serial}->{settings} = "emailAdmins=$emailAdmins";
+    	}
+    	elsif ($msgtype =~ /response/i) 
+    	{
+    		# Handle status response msgs from downstream handlers
+    		if (defined($msg{$serial}))
+    		{
+    			$msg{$serial}->{status} .= $xpc->findvalue("/compromisedLogin/statusMsg");
+    		}
+    		else
+    		{
+    			# We never saw a request associated with this response, or we've already
+    			# waited and sent the email to Admins. In either case, just
+    			# ignore for now (may want to do something else later)
+    		}
+    	}
     }
     else
     {
-	if ($debug)
-	{
-		($line1,$line2,$junk) = split(/\n/,$xmlbody,3);
-		print "Skipping unrecognized JMS message type:\n$line1\n$line2\n$junk";
-	}
-	# process Grouper JMS messages?
+		if ($debug)
+		{
+			($line1,$line2,$junk) = split(/\n/,$xmlbody,3);
+			print "Skipping unrecognized JMS message type:\n$line1\n$line2\n$junk";
+		}
+		# process other JMS messages?
     }
     
     return 1;
