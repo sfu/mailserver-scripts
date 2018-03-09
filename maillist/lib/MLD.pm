@@ -428,6 +428,10 @@ sub deliverToList {
     # Add a local header to indicate the actual delivering list.
     $msg->delete("X-Sfu-Delivering-List-Id");
     $msg->add("X-Sfu-Delivering-List-Id", "<$list.".LISTID_NAMESPACE.">" );
+
+    # Add header to supress auto-replies from Exchange
+    $msg->delete("X-Auto-Response-Suppress");
+    $msg->add("X-Auto-Response-Suppress", "All");
     
     # Remove existing RFC2369 headers and add ones for this list.
     $msg->delete("List-Help");
