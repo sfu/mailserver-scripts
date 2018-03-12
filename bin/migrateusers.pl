@@ -148,9 +148,9 @@ if (!scalar(@{$members}))
 unlink("/opt/mail/manualexchangeusers");
 process_q_cmd($targetserver,"6083","clearman");
 
-foreach $u (@{$members})
+foreach $u (sort (@{$members})
 {
-	_log "Processing $u: ";
+	_log "Starting $u: ";
     $resource = 0;
     $user = $u;
     if ($user =~ /\@resource.sfu.ca/)
@@ -174,7 +174,7 @@ foreach $u (@{$members})
 	if ($res !~ /^ok/)
 	{
         # Failed to enable Exchange account. We can't proceed further for this user
-		_log $res;
+		_log "ERROR for $user: $res";
         if ($res =~ /kerberos/i)
         {
             # Weird Kerberos error. Try sleeping for a bit and retrying
@@ -184,7 +184,7 @@ foreach $u (@{$members})
             $res = process_q_cmd($SERVER, $EXCHANGE_PORT, "$TOKEN enableuser $user");
             if ($res !~ /^ok/)
             {
-                _log "Second attempt, giving up and moving on: $res\n";
+                _log "ERROR for $user: Second attempt, giving up and moving on: $res\n";
                 next;
             }
         }
@@ -293,7 +293,7 @@ foreach $u (@{$members})
 
     if ($fail)
     {
-    	_log "$res\n";
+    	_log "ERROR for $user: $res\n";
         if ($testing)
         {
             _log "$user failed, but running in testing mode, so marking as successful\n";
@@ -302,7 +302,7 @@ foreach $u (@{$members})
     }
     else
     {
-    	_log "success\n";
+    	_log "Processed $user: success\n";
     	push @usersdone,$u;
     }
 }
