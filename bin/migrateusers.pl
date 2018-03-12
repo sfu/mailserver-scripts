@@ -30,6 +30,10 @@ use MLRestClient;
 
 # Zimbra SOAP libraries for doing SOAP to Zimbra
 use lib "/opt/sfu";
+use IO::Socket::SSL qw(SSL_VERIFY_NONE);
+# Don't check validity of server cert - it's going to fail)
+IO::Socket::SSL::set_defaults(SSL_verify_mode => SSL_VERIFY_NONE);
+
 use LWP::UserAgent;
 use XmlElement;
 use XmlDoc;
