@@ -43,7 +43,7 @@ use SFUZimbraCommon;
 use SFUZimbraClient;
 use zimbrapilot;
 
-sub log();
+sub _log;
 
 $me = `whoami`;
 if ($me !~ /amaint/)
@@ -532,8 +532,9 @@ sub modify_zimbra_account()
 
 sub _log()
 {
-    $msg = $_;
-    print LOG scalar localtime(),$msg;
+    $msg = shift;
+    $msg =~ s/\n$//;
+    print LOG scalar localtime(),": ",$msg,"\n";
     print $msg;
 }
 
