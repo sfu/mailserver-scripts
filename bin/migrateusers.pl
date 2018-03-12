@@ -43,6 +43,8 @@ use SFUZimbraCommon;
 use SFUZimbraClient;
 use zimbrapilot;
 
+sub log();
+
 $me = `whoami`;
 if ($me !~ /amaint/)
 {
