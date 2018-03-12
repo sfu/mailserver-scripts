@@ -535,7 +535,7 @@ sub _log()
     $msg = shift;
     $msg =~ s/\n$//;
     print LOG scalar localtime(),": ",$msg,"\n";
-    print $msg;
+    print "$msg\n";
 }
 
 
