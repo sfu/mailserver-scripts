@@ -57,6 +57,7 @@ if ($hostname =~ /stage/)
     $testing=1;
 }
 
+$LOGFILE = "/opt/amaint/log/migrateusers.log";
 $maillistroot = "exchange-migrations-";
 $lastemailfile = "/home/hillman/sec_html/mail/lastmsg";
 $firstemailfile = "/home/hillman/sec_html/mail/firstmsg";
@@ -105,6 +106,11 @@ my %sessionAdmin = (
 );
 
 
+if (!(open(LOG,">>$LOGFILE")))
+{
+    print STDERR "Failed to open $LOGFILE: $@";
+    open(LOG,">>/dev/null");
+}
 
 
 if (defined($ARGV[0]))
@@ -129,9 +135,10 @@ else
 }
 
 
-if (!$members)
+if (!scalar(@{$members}))
 {
-	print "No users found to migrate for $today\n";
+    _log "No users found to migrate for $today\n";
+    close LOG;
 	exit 0;
 }
 
@@ -141,7 +148,7 @@ process_q_cmd($targetserver,"6083","clearman");
 
 foreach $u (@{$members})
 {
-	print "Processing $u: ";
+	_log "Processing $u: ";
     $resource = 0;
     $user = $u;
     if ($user =~ /\@resource.sfu.ca/)
@@ -154,7 +161,7 @@ foreach $u (@{$members})
     {
         if ($ALIASES{"$user\0"} eq "$user\@$DOMAIN\0")
         {
-            print "User already migrated.";
+            _log "User already migrated.";
             untie %ALIASES;
             next;
         }
@@ -165,7 +172,7 @@ foreach $u (@{$members})
 	if ($res !~ /^ok/)
 	{
         # Failed to enable Exchange account. We can't proceed further for this user
-		print $res;
+		_log $res;
         if ($res =~ /kerberos/i)
         {
             # Weird Kerberos error. Try sleeping for a bit and retrying
@@ -175,14 +182,14 @@ foreach $u (@{$members})
             $res = process_q_cmd($SERVER, $EXCHANGE_PORT, "$TOKEN enableuser $user");
             if ($res !~ /^ok/)
             {
-                print "Second attempt, giving up and moving on: $res\n";
+                _log "Second attempt, giving up and moving on: $res\n";
                 next;
             }
         }
         else
         {
             next if (!$testing);
-            print "Test mode so continuing anyway\n";
+            _log "Test mode so continuing anyway\n";
         }
 	}
 
@@ -284,23 +291,24 @@ foreach $u (@{$members})
 
     if ($fail)
     {
-    	print $res,"\n";
+    	_log "$res\n";
         if ($testing)
         {
-            print "$user failed, but running in testing mode, so marking as successful\n";
+            _log "$user failed, but running in testing mode, so marking as successful\n";
             push @usersdone,$user;
         }
     }
     else
     {
-    	print "success\n";
+    	_log "success\n";
     	push @usersdone,$u;
     }
 }
 
 if (!scalar(@usersdone))
 {
-    print "No users successfully processed. Exiting\n";
+    _log "No users successfully processed. Exiting\n";
+    close LOG;
     exit 0;
 }
 
@@ -328,14 +336,16 @@ foreach $user (@usersdone)
 
 if (scalar(@failed))
 {
-    print "Error updating $migratedlist. The folowing users were migrated but not added to the list.\n";
-    print "They must be manually added before another migration is run\n";
+    _log "Error updating $migratedlist. The folowing users were migrated but not added to the list.\n";
+    _log "They must be manually added before another migration is run\n";
 
     foreach $user (@failed)
     {
-        print $user,"\n";
+        _log "$user\n";
     } 
 }
+
+close LOG;
 
 exit 0;
 
@@ -413,7 +423,7 @@ sub members_of_maillist()
             return undef unless @members;
             if ($ml->memberCount() != scalar @members) 
             {
-                print STDERR "Member count returned from MLRest doesn't match maillist member count. Aborting";
+                _log "ERROR: Member count returned from MLRest doesn't match maillist member count. Aborting";
                 return undef;
             }
             foreach $member (@members) 
@@ -424,7 +434,7 @@ sub members_of_maillist()
         }
     };
     if ($@) {
-        print STDERR "Caught error from MLRest client. Aborting";
+        _log "ERROR: Caught error from MLRest client. Aborting";
         return undef;
     }
     return $memarray;
@@ -457,18 +467,18 @@ sub add_message()
     );
 
     if ( !SFUZimbraClient::get_auth_token_by_preauth( \%sessionMail, $user ) ) {
-        print "Failed to auth to Zimbra";
+        _log "ERROR: Failed to auth to Zimbra";
         return 0;
     }
 
     my $msg_id = SFUZimbraClient::add_message(\%sessionMail, \%attributes, $msg);
     if ($msg_id)
     {
-        print "Added Zimbra msg. message id: $msg_id\n";
+        _log "Added Zimbra msg. message id: $msg_id. ";
     }
     else
     {
-        print "Failed to add msg for $user. Response: $msg\n";
+        _log "\nERROR: Failed to add msg for $user. Response: $msg\n";
     }
     return $msg_id;
 }
@@ -480,7 +490,7 @@ sub modify_zimbra_account()
     my ($account,$attrs) = @_;
 
     if (! SFUZimbra::get_auth_token( \%sessionAdmin ) ) {
-        print "Failed to auth to Zimbra SOAP interface\n";
+        _log "ERROR: Failed to auth to Zimbra SOAP interface\n";
         return 0;
     } 
 
@@ -488,7 +498,7 @@ sub modify_zimbra_account()
 
     my $acct_id = SFUZimbra::get_account_id( \%sessionAdmin, $qualified_name );
     if ( !$acct_id ) {
-        print "Account $account is not in zimbra.\n";
+        _log "Account $account is not in zimbra.\n";
         return 0;
     } else {
         my @options;
@@ -496,7 +506,7 @@ sub modify_zimbra_account()
         {
             if ($change !~ /[\w]+=/)
             {
-                print "Attributes not in right format. Format is \"attr=value[,attr2=value2]\"";
+                _log "Attributes not in right format. Format is \"attr=value[,attr2=value2]\"";
                 return 0;
             }
             my ($key,$value) = split(/=/,$change,2);
@@ -508,7 +518,7 @@ sub modify_zimbra_account()
                 my $success = SFUZimbra::modify_account( \%sessionAdmin, $acct_id, @options );
                 if ( !$success )
                 {
-                    print "Failed to modify Zimbra account\n";
+                    _log "ERROR: Failed to modify Zimbra account $account\n";
                     return 0;
                 }
             }
@@ -516,6 +526,13 @@ sub modify_zimbra_account()
 
         return 1;
     }
+}
+
+sub _log()
+{
+    $msg = $_;
+    print LOG scalar localtime(),$msg;
+    print $msg;
 }
 
 
