@@ -148,7 +148,7 @@ if (!scalar(@{$members}))
 unlink("/opt/mail/manualexchangeusers");
 process_q_cmd($targetserver,"6083","clearman");
 
-foreach $u (sort (@{$members})
+foreach $u (sort (@{$members}))
 {
 	_log "Starting $u: ";
     $resource = 0;
