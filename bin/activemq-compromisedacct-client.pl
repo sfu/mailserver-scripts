@@ -42,6 +42,7 @@ $responsequeue = "/queue/ICAT.response.toAmaintsupport"; # Where we pick up stat
 
 $timeout=600;		# Don't wait longer than this to receive a msg. Any longer and we drop, sleep, and reconnect. This helps us recover from Msg Broker problems too
 $maxtimeouts = 3; # Max number of times we'll wait $timeout seconds for a message before dropping the Broker connection and reconnecting
+$waittime = 600; # How long to wait for all responses to come in after receiving a request msg, before colating and emailing results to Admins
 
 
 # =============== end of config settings ===================
@@ -111,9 +112,12 @@ while (1) {
 
     	if (!$frame)
     	{
-    		# Put code in here to check if there are outstanding status responses that we need to look for 
-    		#
-    		#
+    		# Check for old requests that need to be finished off
+    		foreach $serial (keys %msg)
+    		{
+    			cleanup($serial) if ($msg{$serial}->{time} < time() - $waittime);
+    		}
+
     		$counter++;
     		if ($counter >= $maxtimeouts)
     		{
@@ -167,6 +171,8 @@ sub process_msg
     	if ($msgtype =~ /request/i)
     	{
     		# New compromised account
+    		$rcCas = ""; $rcAmaint = ""; $rcZimbra = "";
+
     		$rcCas = clearCASsessions($username) if ($xpc->findvalue("/compromisedLogin/settings/clearCASsessions") !~ /false/i);
     		$rcAmaint = resetPassword($username) if ($xpc->findvalue("/compromisedLogin/settings/resetPassword") !~ /false/i);
     		$rcZimbra = resetZimbraSettings($username) if ($xpc->findvalue("/compromisedLogin/settings/resetZimbraSettings") !~ /false/i);
@@ -209,3 +215,129 @@ sub process_msg
     return 1;
 }
 
+sub cleanup()
+{
+	$msgnum = shift;
+	emailAdmins($msgnum) if ($msg{$msgnum}->{settings} !~ /emailAdmins=false/i);
+	delete($msg{$msgnum});
+}
+
+sub clearCASsessions()
+{
+	$u = shift;
+	$casAdminUser = $Tokens::casAdminUser;
+	$casAdminPass = $Tokens::casAdminPass;
+	$casBaseURL = "https://cas.sfu.ca/cas";
+	$casRestURL = $casBaseURL . "/rest/v1/";
+
+	$casURL = $casRestURL . "tickets";
+
+	$ua = LWP::UserAgent->new;
+
+	# Authenticate to CAS and get a TGT
+	$resp = $ua->post($casURL, {
+				username => $casAdminUser,
+				password => $casAdminPass
+		});
+	if ($resp->content eq "" || !$resp->is_success)
+	{
+		return "CAS Error: " . $resp->code . " " . $resp->content;
+	}
+
+	if ($resp->content !~ /(TGT-[^\"]+)\"/)
+	{
+		return "CAS Error. No TGT found in response: " . $resp->content;
+	}
+	else
+	{
+		$casTGT = $1;
+		$casURL = $casURL . "/$casTGT";
+	}
+
+	# Got the TGT, get a Service Ticket for the activeSessions service
+	$casSessionURL = $casBaseURL . "activeSessions";
+	$resp = $ua->post($casURL, {
+			service => $casSessionURL
+		});
+	if (!$resp->is_success)
+	{
+	    return "CAS Error: Unable to communicate with CAS to get sessions. ";
+	}
+	$casServiceTicket = $resp->content;
+
+
+	# Now we've got a Service Ticket, we can finally fetch the sessions
+	$resp = $ua->post($casSessionURL, {
+			ticket => $casServiceTicket,
+			id => "$u:sfu"
+		});
+	if (!$resp->is_success)
+	{
+	    return "CAS Error: Unable to communicate with CAS to get sessions. ";
+	}
+
+	# parse casResponse here (an XML doc)
+    $sessionCount = 0;
+    @casSessions = ();
+
+    foreach $line (split("\n",$resp->content)) 
+    {
+        if ($line =~ /<cas:activeSessionsFailure code='INVALID ACCESS'>/) 
+        {
+            return "CAS Error: No Access to view or kill CAS sessions. ";
+        } 
+        elsif ($line =~ /<cas:activeSessionsFailure code='INVALID PT'>/) 
+        {
+            return "CAS Error: CAS session expired; can't kill CAS sessions. ";
+        } 
+        elsif ($line =~ /<cas:activeSessionsSuccess>/) 
+        {
+            $sessionCount = 0;
+        }
+        elsif ($line =~ /<cas:session>/) 
+        {
+            $sessionDate = "";
+            $sessionTGT = "";
+            $sessionIP = "";
+        } 
+        elsif ($line =~ /<cas:id>(.*)</cas:id>/) 
+        {
+        	$essionTGT = $1;
+        }
+        elsif ($line =~ /<cas:time>(.*)</cas:time>/) 
+        {
+        	$sessionTime = $1;
+        	# Don't know what $sessionTime looks like so can't parse it yet.
+        	#$sessionDate = 
+        } 
+        elsif ($line =~ /<cas:ip>(.*)</cas:ip>/) 
+        {
+            $sessionIP = $1;
+        } 
+        elsif ($line =~ /</cas:session>/) 
+        {
+            $sessionCount++;
+            push (@casSessions,"$sessionTGT:$sessionIP:$sessionDate");
+        }
+    }
+
+    if ($sessionCount == 0) {
+        return "No CAS sessions to kill. ";
+    }
+
+    $result = "";
+    foreach $sess (@casSessions)
+    {
+    	($ticket,$ip,$date) = split(/:/,$sess,3);
+        $casURLtemp = $casRestURL . "tickets/" . $ticket;  # https://cas.sfu.ca/cas/rest/v1/tickets/TGT-180198-cEhc5z6cqqdpgeO2jVFdhezBDyBvqalYlQJ-WdDjG
+
+        $resp = $ua->delete($casURLtemp)
+        if ($resp->is_success)
+        {
+        	$result .= "Deleted CAS session from $ip at $date. ";
+        }
+    }
+
+    return $result;
+
+}
