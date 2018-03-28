@@ -178,12 +178,13 @@ foreach $u (@{$userlist})
 	if ($opt_m)
 	{
 		$msg =~ s/%%user%%/$unscopeduser/g;
+		$msg =~ s/%%username%%/$unscopeduser/g;
 	}
 	else
 	{
 		foreach $k (keys %{$u})
 		{
-			next if ($k eq 'username' || $k eq 'email' || $k eq 'user');
+			next if ($k eq 'email');
 			$val = $u->{$k};
 			$msg =~ s/%%$k%%/$val/g;
 		}
