@@ -12,37 +12,40 @@
 # - Send email to user if msg->settings->emailUser != false
 # - Send email to admins if msg->settings->emailAdmins != false
 
-use lib '/opt/amaint/etc/lib';
+use lib '/opt/amaint/lib';
 use Net::Stomp;
 use XML::LibXML;
 use HTTP::Request::Common qw(GET POST PUT DELETE);
 use LWP::UserAgent;
-use Canvas;
-use Tokens;
+use ICATCredentials;
+
 
 $debug=0;
 
-# If your ActiveMQ brokers are configured as a master/slave pair, define
-# both hosts here. This script will try the primary, then try the failover
-# host. "Yellow" == primary down, "Red" == both down
-#
-# If not running a pair, leave secondary_host set to undef
+# Fetch all settings from the "Credentials" file
+my $cred  = new ICATCredentials('activemq.json')->credentialForName('client');
+foreach $s qw(primary_host secondary_host stomp_port amquser amqpass casuser caspass casbaseurl)
+{
+    if (!defined($cred->{$s}))
+    {
+        die "$s not defined in activemq.json credentials file";
+    }
+}
+my $primary_host = $cred->{'primary_host'};
+my $secondary_host = $cred->{'secondary_host'};
+my $port = $cred->{'stomp_port'};
+my $mquser = $cred->{'amquser'};
+my $mqpass = $cred->{'amqpass'};
+my $casuser = $cred->{'casuser'};
+my $caspass = $cred->{'caspass'};
+my $casbaseurl = $cred->{'casbaseurl'};
 
-$primary_host = "msgbroker1.tier2.sfu.ca";
-$secondary_host = "msgbroker2.tier2.sfu.ca";
-#$secondary_host = undef;
-
-$port = 61613;
-
-$mquser = $Tokens::mquser;
-$mqpass = $Tokens::mqpass;
 
 $inqueue = "/queue/ICAT.amaint.toCas";
 $responsequeue = "/queue/ICAT.response.toAmaintsupport"; # Where we pick up status responses from
 
 $timeout=600;		# Don't wait longer than this to receive a msg. Any longer and we drop, sleep, and reconnect. This helps us recover from Msg Broker problems too
 $maxtimeouts = 3; # Max number of times we'll wait $timeout seconds for a message before dropping the Broker connection and reconnecting
-$waittime = 600; # How long to wait for all responses to come in after receiving a request msg, before colating and emailing results to Admins
 
 
 # =============== end of config settings ===================
@@ -99,25 +102,12 @@ while (1) {
         }
     );
 
-    $stomp->subscribe(
-        {   destination             => $responsequeue,
-            'ack'                   => 'client',
-            'activemq.prefetchSize' => 1
-        }
-    );
-
     $counter = 0;
     do {
     	$frame = $stomp->receive_frame({ timeout => $timeout });
 
     	if (!$frame)
     	{
-    		# Check for old requests that need to be finished off
-    		foreach $serial (keys %msg)
-    		{
-    			cleanup($serial) if ($msg{$serial}->{time} < time() - $waittime);
-    		}
-
     		$counter++;
     		if ($counter >= $maxtimeouts)
     		{
@@ -172,8 +162,8 @@ sub process_msg
     	{
     		if ($xpc->findvalue("/compromisedLogin/settings/clearCASsessions") !~ /false/i)
             {
-                $rcCas = clearCASsessions($username);
-                send_response($username,$serial,$rcCas);
+                ($rcCas,@sessions) = clearCASsessions($username,$casuser,$caspass,$casbaseurl);
+                send_response($username,$serial,$rcCas,@sessions);
             }
     		
     	}
@@ -200,10 +190,8 @@ sub cleanup()
 
 sub clearCASsessions()
 {
-	$u = shift;
-	$casAdminUser = $Tokens::casAdminUser;
-	$casAdminPass = $Tokens::casAdminPass;
-	$casBaseURL = "https://cas.sfu.ca/cas";
+	my ($u,$casAdminUser,$casAdminPass,$casBaseURL) = @_;
+	
 	$casRestURL = $casBaseURL . "/rest/v1/";
 
 	$casURL = $casRestURL . "tickets";
@@ -276,21 +264,21 @@ sub clearCASsessions()
             $sessionTGT = "";
             $sessionIP = "";
         } 
-        elsif ($line =~ /<cas:id>(.*)</cas:id>/) 
+        elsif ($line =~ /<cas:id>(.*)<\/cas:id>/) 
         {
         	$essionTGT = $1;
         }
-        elsif ($line =~ /<cas:time>(.*)</cas:time>/) 
+        elsif ($line =~ /<cas:time>(.*)<\/cas:time>/) 
         {
         	$sessionTime = $1;
         	# Don't know what $sessionTime looks like so can't parse it yet.
         	#$sessionDate = 
         } 
-        elsif ($line =~ /<cas:ip>(.*)</cas:ip>/) 
+        elsif ($line =~ /<cas:ip>(.*)<\/cas:ip>/) 
         {
             $sessionIP = $1;
         } 
-        elsif ($line =~ /</cas:session>/) 
+        elsif ($line =~ /<\/cas:session>/) 
         {
             $sessionCount++;
             push (@casSessions,"$sessionTGT:$sessionIP:$sessionDate");
@@ -307,20 +295,20 @@ sub clearCASsessions()
     	($ticket,$ip,$date) = split(/:/,$sess,3);
         $casURLtemp = $casRestURL . "tickets/" . $ticket;  # https://cas.sfu.ca/cas/rest/v1/tickets/TGT-180198-cEhc5z6cqqdpgeO2jVFdhezBDyBvqalYlQJ-WdDjG
 
-        $resp = $ua->delete($casURLtemp)
+        $resp = $ua->delete($casURLtemp);
         if ($resp->is_success)
         {
         	$result .= "Deleted CAS session from $ip at $date. ";
         }
     }
 
-    return $result;
+    return $result,@casSessions;
 
 }
 
 sub send_response()
 {
-    my ($user,$serial,$status) = @_;
+    my ($user,$serial,$status,@sessiondata) = @_;
     $responsemsg = <<EOF;
 <compromisedLogin>
    <messageType>Response</messageType>
@@ -328,8 +316,22 @@ sub send_response()
    <serial>$serial</serial>
    <serviceName>CAS</serviceName>
    <statusMsg>$status</statusMsg>
-</compromisedLogin>
 EOF
+    if (scalar(@sessiondata))
+    {
+        $responsemsg .= "   <casSessions>\n";
+        foreach $s (@sessiondata)
+        {
+            ($junk,$ip,$s_date) = split(/:/,$s,3);
+            $responsemsg .= "     <casSession>\n";
+            $responsemsg .= "       <ipAddress>$ip</ipAddress>\n";
+            $responsemsg .= "       <date>$s_date</date>\n";
+            $responsemsg .= "     </casSession>\n";
+        }
+        $responsemsg .= "   </casSessions>\n";
+    }
+    $responsemsg .= "</compromisedLogin>\n";
+
     $stomp->send({
         destination => $responsequeue,
         body        => $responsemsg
