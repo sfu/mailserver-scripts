@@ -140,7 +140,7 @@ elsif ($found == 2)
 				}
 			}
 		}
-		write_user if ($inuser);
+		write_user() if ($inuser);
 
 		_log "No users processed. That's odd\n" if (!$users);
 
