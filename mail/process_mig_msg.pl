@@ -211,12 +211,18 @@ sub send_message()
 sub write_user()
 {
 	mkdir ("$migdir/$mailbox") if (! -d "$migdir/$mailbox");
-	open(OUT,">$migdir/$mailbox/userstats.txt");
-	foreach $k (keys %user)
+	if (open(OUT,">$migdir/$mailbox/userstats.txt"))
 	{
-		print OUT "$k:",$user{$k},"\n";
+		foreach $k (keys %user)
+		{
+			print OUT "$k:",$user{$k},"\n";
+		}
+		close OUT;
 	}
-	close OUT;
+	else
+	{
+		_log "Unable to open $migdir/$mailbox/userstats.txt for writing. User won't have stats!!\n";
+	}
 }
 
 sub read_user()
@@ -237,6 +243,6 @@ sub read_user()
 
 sub _log()
 {
-    $msg = shift;
+    $msg = join("", @_);
     print LOG scalar localtime(),": ",$msg;
 }
