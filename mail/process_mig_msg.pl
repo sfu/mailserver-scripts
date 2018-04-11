@@ -21,6 +21,7 @@ $found = 0;
 $parser = new MIME::Parser;
 $parser->output_under($tmpdir);
 
+umask(007);
 
 $entity = $parser->parse(\*STDIN) or die "MIME Parser Unable to parse message"; 
 
