@@ -29,7 +29,7 @@ $header = $entity->head();
 $subj = $header->get('Subject');
 
 
-if ($subj =~ /CM365: User ([\w\d]+) (started|completed) for ([\w, ]+)/)
+if ($subj =~ /CM365: User ([\w\d_\-]+) (started|completed) for ([\w, ]+)/)
 {
 	$mailbox = $1;
 	$status = $2;
@@ -117,7 +117,7 @@ elsif ($found == 2)
 				# just in case there's colons
 				$migname =~ s/://g;
 			}
-			elsif ($l =~ /\*   User Statistics Summary '([a-z0-9]+)'/)
+			elsif ($l =~ /\*   User Statistics Summary '([a-z0-9_\-]+)'/)
 			{
 				$mailbox = $1;
 				$inuser = 1;
@@ -156,7 +156,7 @@ elsif ($found == 2)
 			{
 				foreach $file (@reportfiles)
 				{
-					if ($file =~ /UserMigrationReport-([a-z0-9]+)/)
+					if ($file =~ /UserMigrationReport-([a-z0-9_\-]+)-2018/)
 					{
 						$mailbox = $1;
 						mkdir ("$migdir/$mailbox/reports") if (! -d "$migdir/$mailbox/reports");
