@@ -13,7 +13,7 @@ $logfile = "/home/hillman/mail/log/process_mig_msg.log";
 $migdir = "/home/hillman/mail/migrations";
 $doneemailfile = "/home/hillman/sec_html/mail/donemsg";
 
-open(LOG,">>$logfile");
+open(LOG,">>$logfile") or die "Can't open $logfile for appending";
 mkdir($tmpdir);
 
 $found = 0;
@@ -36,7 +36,7 @@ if ($subj =~ /CM365: User ([\w\d]+) (started|completed) for ([\w, ]+)/)
 	$what = $3;
 	$found = 1;
 }
-elsif ($subj =~ /CM365: Users Completed/)
+elsif ($subj =~ /CM365: Users Completed/ || $subj eq "User Completed")
 {
 	$found = 2;
 	$status = "completed";
@@ -108,6 +108,7 @@ elsif ($found == 2)
 
 		$inuser = 0;
 		$migname = "All";
+		$users = 0;
 		foreach $l (split(/\n/,$text))
 		{
 			if ($l =~ /Users Completed report for [\d:\/ APM]+ , (.*)/)
@@ -120,7 +121,9 @@ elsif ($found == 2)
 			{
 				$mailbox = $1;
 				$inuser = 1;
+				$users++;
 				read_user();
+				_log "Processing $mailbox\n";
 				next;
 			}
 			if ($inuser && $l !~ /\*   /)
@@ -139,6 +142,8 @@ elsif ($found == 2)
 		}
 		write_user if ($inuser);
 
+		_log "No users processed. That's odd\n" if (!$users);
+
 		# Attempt to unpack the zip file
 		if (defined($zipfile->path))
 		{
@@ -147,16 +152,23 @@ elsif ($found == 2)
 			opendir(DIR,$tmpdir);
 			@reportfiles = grep { /\.html/ } readdir DIR;
 			closedir DIR;
-			foreach $file (@reportfiles)
+			if (scalar(@reportfiles))
 			{
-				if ($file =~ /UserMigrationReport-([a-z0-9]+)/)
+				foreach $file (@reportfiles)
 				{
-					$mailbox = $1;
-					mkdir ("$migdir/$mailbox/reports") if (! -d "$migdir/$mailbox/reports");
-					move("$tmpdir/$file","$migdir/$mailbox/reports");
+					if ($file =~ /UserMigrationReport-([a-z0-9]+)/)
+					{
+						$mailbox = $1;
+						mkdir ("$migdir/$mailbox/reports") if (! -d "$migdir/$mailbox/reports");
+						move("$tmpdir/$file","$migdir/$mailbox/reports");
+					}
 				}
+				_log "Unpacked ", scalar(@reportfiles), " reports from attached Zipfile $zf\n";
 			}
-			_log "Unpacked ", scalar(@reportfiles), " reports from attached Zipfile $zf\n";
+			else
+			{
+				_log "Error: No HTML files found after unpacking $zf";
+			}
 		}
 	}
 }
