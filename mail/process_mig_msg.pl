@@ -12,6 +12,7 @@ $tmpdir = "/tmp/$$";
 $logfile = "/home/hillman/mail/log/process_mig_msg.log";
 $migdir = "/home/hillman/mail/migrations";
 $doneemailfile = "/home/hillman/sec_html/mail/donemsg";
+$recentemailfile = "/home/hillman/sec_html/mail/recentmsg";
 
 open(LOG,">>$logfile") or die "Can't open $logfile for appending";
 mkdir($tmpdir);
@@ -84,6 +85,11 @@ if ($found == 1)
 	{
 		# Send email to end-user that they're all done
 		send_message("localhost", $doneemailfile, $mailbox);
+	}
+
+	if ($file eq "recent" && $status eq "completed")
+	{
+		send_bucket_message($mailbox);
 	}
 }
 elsif ($found == 2)
@@ -178,6 +184,39 @@ close LOG;
 system("rm -rf $tmpdir");
 
 exit 0;
+
+sub send_bucket_message()
+{
+	my $user = shift;
+	my $listbasename = "exchange-migrations-bucket";
+	$found = 0;
+	foreach $suffix (qw(1 2 4 8 big))
+	{
+		$membersfile = "/opt/mail/maillist2/files/${listnbasename}${suffix}/members";
+		next if (! -f $membersfile);
+		open(IN,$membersfile) or next;
+		while(<IN>)
+		{
+			($memb,$junk) = split(/\s/,2);
+			if ($memb eq $user)
+			{
+				$found = 1;
+				last;
+			}
+		}
+		close IN;
+		last if ($found);
+	}
+	$suffix = "default" if (!$found);
+	if (-if $recentemailfile.$suffix)
+	{
+		send_message("localhost",$recentemailfile.$suffix,$user);
+	}
+	else
+	{
+		_log "${recentemailfile}${suffix} file not found. Not sending 'recent mail done' email\n";
+	}
+}
 
 sub send_message()
 {
