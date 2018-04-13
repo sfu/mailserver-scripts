@@ -4,6 +4,7 @@ use Net::SMTP;
 use MIME::Parser;
 use DB_File;
 use File::Copy;
+use JSON;
 
 sub _log;
 
@@ -147,6 +148,7 @@ elsif ($found == 2)
 			}
 		}
 		write_user() if ($inuser);
+		update_status($migname,$mailbox);
 
 		_log "No users processed. That's odd\n" if (!$users);
 
@@ -278,6 +280,28 @@ sub read_user()
 		}
 		close UIN;
 	}
+}
+
+sub update_status()
+{
+	my ($name,$user) = @_;
+	my $json = JSON->new->allow_nonref;
+	if (-f "$migdir/status.json")
+	{
+		open(IN,"$migdir/status.json");
+		$jsonstr = join("",<IN>);
+		close IN;
+		$statuses = $json->decode($jsonstr);
+	}
+	else
+	{
+		$statuses = {};
+	}
+	# If the most recent user is later in alphabet than previous one for this migration, save it
+	$statuses->{$name} = sort($statuses->{$name},$user)[1];
+	open(OUT,">$migdir/status.json");
+	print OUT $json->encode($statuses);
+	close OUT;
 }
 
 sub _log()
