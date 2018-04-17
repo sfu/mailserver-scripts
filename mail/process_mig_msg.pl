@@ -224,7 +224,7 @@ sub send_bucket_message()
 		last if ($found);
 	}
 	$suffix = "default" if (!$found);
-	if (-if $recentemailfile.$suffix)
+	if (-f $recentemailfile.$suffix)
 	{
 		send_message("localhost",$recentemailfile.$suffix,$user);
 	}
@@ -320,7 +320,8 @@ sub update_status()
 	{
 		$statuses->{$name} = {};
 	}
-	$statuses->{$name}->{$user} = sort($statuses->{$name}->{$user},$user)[1];
+	@temp = sort($statuses->{$name}->{$user},$user);
+	$statuses->{$name}->{$user} = $temp[1];
 	open(OUT,">$migdir/status.json");
 	print OUT $json->encode($statuses);
 	close OUT;
