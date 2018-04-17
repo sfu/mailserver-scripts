@@ -320,8 +320,8 @@ sub update_status()
 	{
 		$statuses->{$name} = {};
 	}
-	@temp = sort($statuses->{$name}->{$user},$user);
-	$statuses->{$name}->{$user} = $temp[1];
+	@temp = sort($statuses->{$name}->{'user'},$user);
+	$statuses->{$name}->{'user'} = $temp[1];
 	open(OUT,">$migdir/status.json");
 	print OUT $json->encode($statuses);
 	close OUT;
