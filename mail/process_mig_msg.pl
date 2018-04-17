@@ -25,6 +25,9 @@ $parser->output_under($tmpdir);
 
 umask(007);
 
+$json = JSON->new->allow_nonref;
+load_status();
+
 $entity = $parser->parse(\*STDIN) or die "MIME Parser Unable to parse message"; 
 
 $header = $entity->head();
@@ -120,15 +123,26 @@ elsif ($found == 2)
 		{
 			if ($l =~ /Users Completed report for [\d:\/ APM]+ , (.*)/)
 			{
+				$oldmigname = $migname;
 				$migname = $1;
 				# just in case there's colons
 				$migname =~ s/://g;
+				if (!defined($statuses->{$migname}))
+				{
+					$statuses->{$migname} = {};
+				}
+				if ($oldmigname ne "All")
+				{
+					# more than one migration in this email. Save the state of the last migration before moving on
+					update_status($oldmigname,$mailbox);
+				}
 			}
 			elsif ($l =~ /\*   User Statistics Summary '([a-z0-9_\-]+)'/)
 			{
 				$mailbox = $1;
 				$inuser = 1;
 				$users++;
+				$statuses->{$migname}->{'count'}++;
 				read_user();
 				_log "Processing $mailbox\n";
 				next;
@@ -282,10 +296,8 @@ sub read_user()
 	}
 }
 
-sub update_status()
+sub load_status()
 {
-	my ($name,$user) = @_;
-	my $json = JSON->new->allow_nonref;
 	if (-f "$migdir/status.json")
 	{
 		open(IN,"$migdir/status.json");
@@ -297,8 +309,18 @@ sub update_status()
 	{
 		$statuses = {};
 	}
+}
+
+sub update_status()
+{
+	my ($name,$user) = @_;
+	
 	# If the most recent user is later in alphabet than previous one for this migration, save it
-	$statuses->{$name} = sort($statuses->{$name},$user)[1];
+	if (!defined($statuses->{$name}))
+	{
+		$statuses->{$name} = {};
+	}
+	$statuses->{$name}->{$user} = sort($statuses->{$name}->{$user},$user)[1];
 	open(OUT,">$migdir/status.json");
 	print OUT $json->encode($statuses);
 	close OUT;
