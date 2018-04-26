@@ -206,7 +206,7 @@ sub send_bucket_message()
 	my $user = shift;
 	my $listbasename = "exchange-migrations-bucket";
 	$found = 0;
-	foreach $suffix (qw(1 2 4 8 big))
+	foreach $suffix (qw(0 1 2 4 8 big))
 	{
 		$membersfile = "/opt/mail/maillist2/files/${listnbasename}${suffix}/members";
 		next if (! -f $membersfile);
