@@ -322,9 +322,24 @@ sub update_status()
 	}
 	@temp = sort($statuses->{$name}->{'user'},$user);
 	$statuses->{$name}->{'user'} = $temp[1];
+	$maxtries = 30;
+	while($maxtries)
+	{
+		if (-f "$migdir/status.json.lock")
+		{
+			$maxtries--;
+			sleep 1;
+			next;
+		}
+		open(LOCK,">$migdir/status.json.lock");
+		print LOCK $$;
+		close LOCK;
+	}
+	return if (!$maxtries);
 	open(OUT,">$migdir/status.json");
 	print OUT $json->encode($statuses);
 	close OUT;
+	unlink("$migdir/status.json.lock");
 }
 
 sub _log()
