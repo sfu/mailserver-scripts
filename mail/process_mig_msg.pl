@@ -216,6 +216,7 @@ sub send_bucket_message()
 			($memb,$junk) = split(/\s/,2);
 			if ($memb eq $user)
 			{
+				_log "Found $user in $membersfile";
 				$found = 1;
 				last;
 			}
