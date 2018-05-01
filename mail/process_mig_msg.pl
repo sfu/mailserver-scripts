@@ -208,7 +208,7 @@ sub send_bucket_message()
 	$found = 0;
 	foreach $suffix (qw(0 1 2 4 8 big))
 	{
-		$membersfile = "/opt/mail/maillist2/files/${listnbasename}${suffix}/members";
+		$membersfile = "/opt/mail/maillist2/files/${listbasename}${suffix}/members";
 		next if (! -f $membersfile);
 		open(IN,$membersfile) or next;
 		while(<IN>)
