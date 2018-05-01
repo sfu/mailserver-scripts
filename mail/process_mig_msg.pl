@@ -213,7 +213,7 @@ sub send_bucket_message()
 		open(IN,$membersfile) or next;
 		while(<IN>)
 		{
-			($memb,$junk) = split(/\s/,2);
+			($memb,$junk) = split(/\s/,$_,2);
 			if ($memb eq $user)
 			{
 				_log "Found $user in $membersfile";
