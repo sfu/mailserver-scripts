@@ -223,7 +223,11 @@ sub send_bucket_message()
 		close IN;
 		last if ($found);
 	}
-	$suffix = "default" if (!$found);
+	if (!$found)
+	{
+			$suffix = "default";
+			_log "Couldn't find $user in $membersfile (or the others) so using default msg\n";
+	}
 	if (-f $recentemailfile.$suffix)
 	{
 		send_message("localhost",$recentemailfile.$suffix,$user);
@@ -335,7 +339,6 @@ sub update_status()
 		print LOCK $$;
 		close LOCK;
 	}
-	return if (!$maxtries);
 	open(OUT,">$migdir/status.json");
 	print OUT $json->encode($statuses);
 	close OUT;
