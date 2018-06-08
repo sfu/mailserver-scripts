@@ -113,6 +113,14 @@ if (!(open(LOG,">>$LOGFILE")))
     print STDERR "Failed to open $LOGFILE: $@";
     open(LOG,">>/dev/null");
 }
+else
+{
+    # Make sure STDOUT and log file are unbuffered
+    $| = 1;
+    $old_fh = select(LOG);
+    $| = 1;
+    select($old_fh);
+}
 
 
 if (defined($ARGV[0]))
@@ -326,7 +334,9 @@ foreach $user (@usersdone)
     if (defined($client) && defined($ml))
     {
         eval {
-            $mem = $client->addMember($ml,$user)
+            $mem=0
+            # While we're having problems with Maillist subscribe, force all attempts to fail fast
+            #$mem = $client->addMember($ml,$user)
         };
     }
     if (!$mem)

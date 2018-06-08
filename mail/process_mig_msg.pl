@@ -206,17 +206,19 @@ sub send_bucket_message()
 	my $user = shift;
 	my $listbasename = "exchange-migrations-bucket";
 	$found = 0;
-	foreach $suffix (qw(0 1 2 4 8 big))
+	foreach $batch (qw(0 1 2 4 8 big))
 	{
-		$membersfile = "/opt/mail/maillist2/files/${listbasename}${suffix}/members";
+		$membersfile = "/opt/mail/maillist2/files/${listbasename}${batch}/members";
 		next if (! -f $membersfile);
 		open(IN,$membersfile) or next;
 		while(<IN>)
 		{
-			($memb,$junk) = split(/\s/,2);
+			($memb,$junk) = split(/\s/,$_,2);
 			if ($memb eq $user)
 			{
+				_log "Found $user in $membersfile\n";
 				$found = 1;
+				$suffix = $batch;
 				last;
 			}
 		}
