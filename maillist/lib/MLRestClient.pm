@@ -80,7 +80,7 @@ GET:
         last;
       } else {
         $main::HTTPCODE = $response->code();
-        return 0;
+        return undef;
       }
       die "updateAllMaillists: interrupted getting listnames" if $MLUpdt::TERM;
       _stderr( "get for $url not successful:". $response->code );
@@ -120,7 +120,7 @@ POST:
         last;
       } else {
         $main::HTTPCODE = $response->code();
-        return 0;
+        return undef;
       }
       die "_httpPost: interrupted by SIGTERM" if $MLUpdt::TERM;
       _stderr( "post for $url not successful:". $response->code );
@@ -174,6 +174,9 @@ PUT:
         $mldata = $response->content;
         $main::ETag = $response->header('ETag');
         last;
+      } else {
+        $main::HTTPCODE = $response->code();
+        return undef;
       }
       die "_httpPut: interrupted by SIGTERM" if $MLUpdt::TERM;
       _stderr( "PUT for $url not successful:". $response->code );
@@ -215,6 +218,9 @@ DEL:
         $main::sleepCounter = 0;
         $mldata = $response->content;
         last;
+      } else {
+        $main::HTTPCODE = $response->code();
+        return undef;
       }
       die "_httpDelete: interrupted by SIGTERM" if $MLUpdt::TERM;
       _stderr( "delete for $url not successful:". $response->code );
@@ -485,11 +491,8 @@ sub getMemberForMaillistByAddress {
     }
     my $ml_id = $ml->id();
     my $url = $self->{baseUrl} . "maillists/$ml_id/members.json?member=$address&sfu_token=" . $self->{token};
-    print "GETting $url\n";
-	my $memdata = _httpGet($url);
-	print "memdata: $memdata\n";
-	print ref $memdata; print "\n";
-	return $memdata ? new MLRestMember($self, $memdata) : $memdata;
+    my $memdata = _httpGet($url);
+    return $memdata ? new MLRestMember($self, $memdata) : $memdata;
 }
 
 sub deleteMember {

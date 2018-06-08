@@ -11,7 +11,6 @@ use Mail::Internet;
 use Mail::Address;
 use Mail::Send;
 use Digest::MD5;
-use SOAP::Lite ;
 #
 # mlproxy requires an absolute lib path, as it runs from /etc/smrsh
 use lib '/opt/amaint/maillist/lib';
@@ -50,16 +49,6 @@ $PREFIX = "";
 my $mlrest = new ICATCredentials('maillist.json')->credentialForName('robert');
 my $client = new MLRestClient($mlrest->{username},$mlrest->{password},0);
 
-my $info = $client->getMaillistByName( $LISTNAME );
-unless ($info) { print "Not defined\n"; exit(0); }
-
-# TODO: Need to convert from SOAP to REST
-$main::TOKEN = $mlrest->{soapToken};
-my $serviceurl = $mlrest->{soapUrl};
-$main::SERVICE = SOAP::Lite
-        -> ns_uri( $serviceurl )
-        -> proxy( $serviceurl );
-
 openlog "ml2proxy", "pid", "mail";
 syslog("notice", "mlproxy started");
 
@@ -92,7 +81,14 @@ syslog("notice", "subjecthdr:$subjecthdr");
 
 my @subject = split /\s+/,$subjecthdr;
 my $cmd = lc $subject[0];
-$LISTNAME = $subject[1] unless $LISTNAME;
+$LISTNAME = lc $subject[1] unless $LISTNAME;
+
+my $info = $client->getMaillistByName( $LISTNAME );
+if (!$info)
+{
+	syslog("notice","mlproxy exited for sender $sender and cmd \"$cmd\". $LISTNAME does not exist or MLREST call failed to fetch it");
+	exit 0;
+}
     
 if ($#subject==3 && (lc $subject[2]) eq 'confirmation') {
 	my $digest = $subject[3];
@@ -103,86 +99,60 @@ if ($#subject==3 && (lc $subject[2]) eq 'confirmation') {
 	}
 	_processReply(_getCommand($cmd), $LISTNAME, $sender, $digest);
 } else {
-    if ($#subject==1 && !$LISTNAME) {
-        $LISTNAME = lc $subject[1];
-    }
-    unless($LISTNAME) {
-       $msg = "Sorry. Your maillist request could not be completed. You sent the command:\n\n  ".$subjecthdr."\n\nThat is not a valid maillist command - you did not specify a maillist name. Valid commands are:\n\nsubscribe <list-name>\nunsubscribe <list-name>";
-       print $msg if DEBUG;
-       _sendMail( $sender, 'Maillist error', $msg );
-	   syslog("notice", "mlproxy failed to process command '$subjecthdr' because no listname provided");
-       closelog();
-       exit(0);
-    }
-    unless (MLMail::isMaillist($LISTNAME)) {
-       $msg = "Sorry. Your maillist request could not be completed. You sent the command:\n\n  ".$subjecthdr."\n\n'$LISTNAME' is not a valid maillist.";
-       print $msg if DEBUG;
-       _sendMail( $sender, 'Maillist error', $msg );
-	   syslog("notice", "mlproxy failed to process command '$cmd' because no such list:$LISTNAME");
-       closelog();
-       exit(0);
-    }
 	syslog("notice", "mlproxy processing $LISTNAME");
-	unless (%info) {
-
-	    $moderator = $info->{'moderator'};
-	    $moderator = $info->{'owner'} unless ($moderator);
-		$cmd = _getCommand($cmd);        
-		my $digest = _generateDigest($sender, $cmd, $LISTNAME);
-		my $subject = $cmd.' '.$LISTNAME.' Confirmation "'.$digest.'"';
-		
-		if ($cmd eq 'subscribe') {
-		   my $policy = _subscriptionPolicyForSender($info, $sender);
-		   print("policy:$policy\n") if DEBUG;
-		   if ($policy==OWNERONLY) {
-		      # send reply with directions
-              _sendMailFromTemplate("subNotAllowed", $sender, 'Maillist error', $LISTNAME);
-		   } else {
-              print("send confirmation\n") if DEBUG;
-		      # send subscribe confirmation message
-		      	syslog("notice", "sending subscribe $LISTNAME confirmation for $sender");
-		      	syslog("notice", " with subject:$subject");
-              _sendMailFromTemplate("sub1", $sender, $subject, $LISTNAME, "$PREFIX$LISTNAME-request\@sfu.ca", "$PREFIX$LISTNAME-request\@sfu.ca" );
-		   }
-		} elsif ($cmd eq 'unsubscribe') {
-		   if (!_isMember($info, $sender)) {
-              	_sendMailFromTemplate("notMember", $sender, 'Maillist error', $LISTNAME);
-		   } elsif ($info->{'canUnsubscribe'} || !MLMail::isLocalAddress($sender)) {
-		      	# Send unsubscribe confirmation message
-		      	syslog("notice", "sending unsubscribe $LISTNAME confirmation for $sender");
-              		_sendMailFromTemplate("unsub1", $sender, $subject, $LISTNAME, "$PREFIX$LISTNAME-request\@sfu.ca", "$PREFIX$LISTNAME-request\@sfu.ca");
-           	    } elsif ($info->{'type'} != 0) {
-              		_sendMailFromTemplate("dynamicMember", $sender, 'Maillist error', $LISTNAME);
-           	    } else {
-              		_sendMailFromTemplate("unsubNotAllowed", $sender, 'Maillist error', $LISTNAME);
-           	    }
-		} elsif ($cmd eq 'help') {
-		   	$subject = $LISTNAME." help";
-		   	my $mlc = new MLCache($LISTNAME);
-		   	$description = $mlc->{'desc'};
-		   	my $policy = _subscriptionPolicyForSender($info, $sender);
-		   	if ($mlc->{'type'}!=0) {
-           		_sendMailFromTemplate("help_noinfo", $sender, $subject, $LISTNAME, "$PREFIX$LISTNAME-request\@sfu.ca", "$PREFIX$LISTNAME-request\@sfu.ca");
-		   	} elsif ($policy!=OWNERONLY) {
-              	_sendMailFromTemplate("help", $sender, $subject, $LISTNAME, "$PREFIX$LISTNAME-request\@sfu.ca", "$PREFIX$LISTNAME-request\@sfu.ca");
-           	} elsif ($mlc->isMemberOfExpandedList($sender, \%seen)) {
-              	_sendMailFromTemplate("help_no_sub", $sender, $subject, $LISTNAME, "$PREFIX$LISTNAME-request\@sfu.ca", "$PREFIX$LISTNAME-request\@sfu.ca");
-           	} else {
-              	_sendMailFromTemplate("help_noinfo", $sender, $subject, $LISTNAME, "$PREFIX$LISTNAME-request\@sfu.ca", "$PREFIX$LISTNAME-request\@sfu.ca");
-           	}
-		} else {
-		   # Not a known command. Forward to owner/moderator.
-           	my $body = join "",@{$msg->body()};
-	   		my $to = join ',',$moderator;
-           	_sendMail( $to, $subjecthdr, $body, $sender." ($sender via $PREFIX$LISTNAME-request)" );
-		}
+	
+    $moderator = $info->{'moderator'};
+    $moderator = $info->{'owner'} unless ($moderator);
+	$cmd = _getCommand($cmd);        
+	my $digest = _generateDigest($sender, $cmd, $LISTNAME);
+	my $subject = $cmd.' '.$LISTNAME.' Confirmation "'.$digest.'"';
+	
+	if ($cmd eq 'subscribe') {
+	   my $policy = _subscriptionPolicyForSender($info, $sender);
+	   print("policy:$policy\n") if DEBUG;
+	   if ($policy==OWNERONLY) {
+	      # send reply with directions
+          _sendMailFromTemplate("subNotAllowed", $sender, 'Maillist error', $LISTNAME);
+	   } else {
+          print("send confirmation\n") if DEBUG;
+	      # send subscribe confirmation message
+	      	syslog("notice", "sending subscribe $LISTNAME confirmation for $sender");
+	      	syslog("notice", " with subject:$subject");
+          _sendMailFromTemplate("sub1", $sender, $subject, $LISTNAME, "$PREFIX$LISTNAME-request\@sfu.ca", "$PREFIX$LISTNAME-request\@sfu.ca" );
+	   }
+	} elsif ($cmd eq 'unsubscribe') {
+	   if (!_isMember($info, $sender)) {
+          	_sendMailFromTemplate("notMember", $sender, 'Maillist error', $LISTNAME);
+	   } elsif ($info->{'canUnsubscribe'} || !MLMail::isLocalAddress($sender)) {
+	      	# Send unsubscribe confirmation message
+	      	syslog("notice", "sending unsubscribe $LISTNAME confirmation for $sender");
+          		_sendMailFromTemplate("unsub1", $sender, $subject, $LISTNAME, "$PREFIX$LISTNAME-request\@sfu.ca", "$PREFIX$LISTNAME-request\@sfu.ca");
+       	    } elsif ($info->{'type'} != 0) {
+          		_sendMailFromTemplate("dynamicMember", $sender, 'Maillist error', $LISTNAME);
+       	    } else {
+          		_sendMailFromTemplate("unsubNotAllowed", $sender, 'Maillist error', $LISTNAME);
+       	    }
+	} elsif ($cmd eq 'help') {
+	   	$subject = $LISTNAME." help";
+	   	my $mlc = new MLCache($LISTNAME);
+	   	$description = $mlc->{'desc'};
+	   	my $policy = _subscriptionPolicyForSender($info, $sender);
+	   	if ($mlc->{'type'}!=0) {
+       		_sendMailFromTemplate("help_noinfo", $sender, $subject, $LISTNAME, "$PREFIX$LISTNAME-request\@sfu.ca", "$PREFIX$LISTNAME-request\@sfu.ca");
+	   	} elsif ($policy!=OWNERONLY) {
+          	_sendMailFromTemplate("help", $sender, $subject, $LISTNAME, "$PREFIX$LISTNAME-request\@sfu.ca", "$PREFIX$LISTNAME-request\@sfu.ca");
+       	} elsif ($mlc->isMemberOfExpandedList($sender, \%seen)) {
+          	_sendMailFromTemplate("help_no_sub", $sender, $subject, $LISTNAME, "$PREFIX$LISTNAME-request\@sfu.ca", "$PREFIX$LISTNAME-request\@sfu.ca");
+       	} else {
+          	_sendMailFromTemplate("help_noinfo", $sender, $subject, $LISTNAME, "$PREFIX$LISTNAME-request\@sfu.ca", "$PREFIX$LISTNAME-request\@sfu.ca");
+       	}
 	} else {
-		$msg = "The following operation failed:\n\n".$cmd.' '.$LISTNAME."\n\nReason: Internal error:";
-	  	$msg .= getErrMessage($info);
-        $msg .= "\n\nPlease contact postmaster\@sfu.ca to report this problem.\n";
-        print $msg if DEBUG;
-        _sendMail( $sender, 'Maillist error', $msg );
+	   # Not a known command. Forward to owner/moderator.
+       	my $body = join "",@{$msg->body()};
+   		my $to = join ',',$moderator;
+       	_sendMail( $to, $subjecthdr, $body, $sender." ($sender via $PREFIX$LISTNAME-request)" );
 	}
+	
 }
 
 closelog();
@@ -217,29 +187,22 @@ sub _processReply {
 	syslog("notice", "_processReply newdigest:$newdigest");
 	if ($newdigest eq $digest) {
 		syslog("notice", "executing: $cmd $list for $sender");
-		my $token = SOAP::Data->type(string => $main::TOKEN);
-		my $listname = SOAP::Data->type(string => $list);
-		my $address = SOAP::Data->type(string => $sender);
+		
 		if ($cmd eq 'subscribe') {
-			$result = _subscribeViaEmail( $token, $listname, $address );
+			$result = _subscribeViaEmail( $listname, $sender );
 			$template = "sub2";
 		} elsif ($cmd eq 'unsubscribe') {
-			$result = _unsubscribeViaEmail( $token, $listname, $address );
+			$result = _unsubscribeViaEmail( $listname, $sender );
 			$template = "unsub2";
 		} else {
 			$msg = "The following operation failed:\n\n".$cmd.' '.$list."\n\nReason:\"".cmd."\" is not a valid command";
 			_sendMail( $sender, 'Maillist error', $msg );
 		}
 		
-		unless ($result->fault ) {
-			if ($result->result()=~/^ok/) {
-				_sendMailFromTemplate($template, $sender, 'Maillist Confirmation', $list);
-			} else {
-				$msg = "The following operation failed:\n\n".$cmd.' '.$list."\n\nReason:".substr($result->result(),3);
-				_sendMail( $sender, 'Maillist error', $msg );
-			}
+		if (defined($result)) {
+			_sendMailFromTemplate($template, $sender, 'Maillist Confirmation', $list);
 		} else {
-				$msg = "The following operation failed:\n\n".$cmd.' '.$list."\n\nReason:".$result->faultstring;
+				$msg = "The following operation failed:\n\n".$cmd.' '.$list."\n\n";
 				_sendMail( $sender, 'Maillist error', $msg );
 		}
 	} else {
@@ -323,16 +286,16 @@ sub _getCommand {
 }
 
 sub _subscribeViaEmail {
-	my ($token, $listname, $address) = @_;
+	my ($listname, $address) = @_;
 UPD: 
-    for (;;) {
-        eval '$main::response = $main::SERVICE -> subscribeViaEmail( $token, $listname, $address );';
-        if ($@ || $main::response==0) {
-            if ($@ =~ /500 Error WebObjects/ || $@ =~ /404 File Not Found/) {
+    for ($attempt = 0; $attempt < 5; $attempt++) {
+        eval '$main::response = $client->addMember($info, $address );';
+        if (!defined($main::response)) {
+            if ($main::HTTPCODE =~ /500/ || $$main::HTTPCODE =~ /404/) {
                 sleep 30;
-                redo UPD;
+                next;
             }
-            my $msg = "_subscribeViaEmail failed for $LISTNAME, $sender :$@";
+            my $msg = "_subscribeViaEmail failed for $LISTNAME, $sender";
 			_sendMail( "amaint\@sfu.ca", 'mlproxy error', $msg );
 		}
         last;
@@ -343,12 +306,23 @@ UPD:
 sub _unsubscribeViaEmail {
 	my ($token, $listname, $address) = @_;
 UPD: 
-    for (;;) {
-        eval '$main::response = $main::SERVICE -> unsubscribeViaEmail( $token, $listname, $address );';
-        if ($@ || $main::response==0) {
-            if ($@ =~ /500 Error WebObjects/ || $@ =~ /404 File Not Found/) {
+    for ($attempt = 0; $attempt < 5; $attempt++) {
+        eval {
+        	$member = $client->getMemberForMaillistByAddress($info,$address);
+        	if ($member)
+        	{ 
+        		$main::response = $client->deleteMember($member);
+        	}
+        	else
+        	{
+        		syslog("notice","$address not in $listname");
+        		die "$address not in $listname"
+        	}
+        };
+        if ($@ || (!defined($main::response))) {
+            if ($main::HTTPCODE =~ /500/ || $$main::HTTPCODE =~ /404/) {
                 sleep 30;
-                redo UPD;
+                next;
             }
             my $msg = "_unsubscribeViaEmail failed for $LISTNAME, $sender :$@";
 			_sendMail( "amaint\@sfu.ca", 'mlproxy error', $msg );
