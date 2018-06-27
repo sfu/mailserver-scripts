@@ -31,7 +31,8 @@ sub usage()
 	print "    -m maillist       Specify a maillsit of users to email. -c and -m options are mutually exclusive and one or the other must be given\n";
 	print "                      If a maillist is specified, only the username or email address can be merged into the template\n";
 	print "    -t templatefile   Specify the template file to merge with. This option is mandatory\n";
-	print "    -f from\@domain    Email address to use in the From field. If not specified, the one in the Template file is used.\n";
+	print "    -f from\@domain   Email address to use in the From field. If not specified, the one in the Template file is used.\n";
+	print "    -r 				 Preserve the Reply-To header from the template file (default is to ignore it)\n";
 	exit 1;
 }
 
@@ -132,6 +133,12 @@ while(<TMPL>)
 		next;
 	}
 	if (/^(Subject|Content-Type|MIME-Version): /) # Add any other headers we wish to preserve here
+	{
+		$template .= $_;
+		$skipped = 0;
+		next;
+	}
+	if ($opt_r && /^Reply-To: /)
 	{
 		$template .= $_;
 		$skipped = 0;
