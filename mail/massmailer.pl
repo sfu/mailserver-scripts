@@ -28,7 +28,9 @@ sub usage()
 	print "Send mass mail to a group of users, customizing a template to each recipient.\n";
 	print "Usage: massmailer.pl ( -c users.csv | -m maillist ) -t templatefile\n";
 	print "    -c file.csv       Specify a CSV file containing a list of names and optionally other columns to be merged into template\n";
-	print "    -m maillist       Specify a maillsit of users to email. -c and -m options are mutually exclusive and one or the other must be given\n";
+	print "    -m maillist[,maillist,-maillist]\n";       
+	print "						 Specify one or more maillists of users to email. Use [-list] to exclude members of that list. \n";
+	print "						 -c and -m options are mutually exclusive and one or the other must be given\n";
 	print "                      If a maillist is specified, only the username or email address can be merged into the template\n";
 	print "    -t templatefile   Specify the template file to merge with. This option is mandatory\n";
 	print "    -f from\@domain   Email address to use in the From field. If not specified, the one in the Template file is used.\n";
@@ -52,7 +54,46 @@ if ($opt_c && (! -f $opt_c))
 
 if ($opt_m)
 {
-	$userlist = members_of_maillist($opt_m);
+	if ($opt_m =~ /,/)
+	{
+		$members = [];
+		@lists = split(/,/,$opt_m);
+		foreach $l (@lists)
+		{
+			if ($l =~ /^\-/)
+			{
+				$exclude = 1;
+				$l =~ s/^\-//;
+			}
+			else { $exclude = 0; }
+			$mems =  members_of_maillist($l);
+			if ($exclude)
+			{
+				push @$excludes,@$mems;
+			}
+			else
+			{
+				push @$members,@$mems;
+			}
+		}
+	}
+	else
+	{
+		$members = members_of_maillist($opt_m);
+	}
+
+	foreach $u (@$excludes)
+	{
+		$ex{$u} = 1;
+	}
+	foreach $u (@$members)
+	{
+		$user{$u} = 1 if (!defined($ex{$u}));
+	}
+
+	$userlist = [];
+	push @$userlist,(sort keys %user);
+
 	if (!scalar(@{$userlist}))
 	{
 		print "Maillist $opt_m is empty or doesn't exist. Nothing to do.\n";
@@ -158,6 +199,8 @@ while(<TMPL>)
 	$skipped = 1;
 }
 close TMPL;
+
+print "Would email to ",scalar(@$userlist)," users\n\n" if ($opt_d);
 
 print "Template: $template" if ($opt_d);
 
