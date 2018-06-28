@@ -38,7 +38,7 @@ sub usage()
 	exit 1;
 }
 
-getopts('c:df:m:t:') or usage();
+getopts('c:df:m:t:r') or usage();
 
 usage() if ((!$opt_c && !$opt_m) || !$opt_t || ($opt_c && $opt_m));
 if(! -f $opt_t) 
