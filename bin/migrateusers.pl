@@ -122,6 +122,8 @@ else
     select($old_fh);
 }
 
+$today = `date +%Y%m%d`;
+chomp $today;
 
 if (defined($ARGV[0]))
 {
@@ -131,6 +133,19 @@ if (defined($ARGV[0]))
         print "Specified list '$member' on command line. Processing list members\n";
         $members = members_of_maillist($member);
     }
+    elsif (-e $member)
+    {
+        print "Found file $member. Loading members.\n";
+        open(IN,$member) or die "Can't open $member for reading\n";
+        $members = [];
+        while(<IN>)
+        {
+            chomp;
+            push(@$members,$_);
+        }
+        close IN;
+        print "Loaded ",scalar(@$members)," users\n";
+    }
     else
     {
         print "Specified user '$member' on command line. Just processing that user\n";
@@ -139,8 +154,6 @@ if (defined($ARGV[0]))
 }
 else
 {
-    $today = `date +%Y%m%d`;
-    chomp $today;
     $members = members_of_maillist($maillistroot.$today);
 }
 
@@ -152,9 +165,19 @@ if (!scalar(@{$members}))
 	exit 0;
 }
 
-# We can live with these commands failing, so don't worry about return codes
-unlink("/opt/mail/manualexchangeusers");
-process_q_cmd($targetserver,"6083","clearman");
+if ($today > 20180802)
+{
+    # For final cutover, don't clear the flat files between runs because we won't be populating
+    # the emailpilot-users lists anymore
+    print "Invoking Post-apocalytpic processing. Will not clear flat files\n";
+}
+else
+{
+    # We can live with these commands failing, so don't worry about return codes
+    unlink("/opt/mail/manualexchangeusers");
+    process_q_cmd($targetserver,"6083","clearman");
+}
+
 
 foreach $u (sort (@{$members}))
 {
