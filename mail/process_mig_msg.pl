@@ -23,7 +23,7 @@ $found = 0;
 $parser = new MIME::Parser;
 $parser->output_under($tmpdir);
 
-umask(007);
+umask(022);
 
 $json = JSON->new->allow_nonref;
 load_status();
