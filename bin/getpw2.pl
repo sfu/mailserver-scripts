@@ -50,8 +50,7 @@ $BLOCKFILE = "$MAILDIR/blockfile";
 $LOCKFILE = "$LOCKDIR/passwd.lock";             
 $ALIASFILE = "$MAILDIR/aliases2";
 $TMPALIASFILE = "$ALIASFILE.new";
-$EXCHANGEUSERS = "$MAILDIR/exchangeusers";
-$MANEXCHANGEUSERS = "$MAILDIR/manualexchangeusers";
+$CONNECTUSERS = "$MAILDIR/connectusers";
 $ZIMBRARESOURCES = "$MAILDIR/zimbraresources";
 $MINCOUNT = 50000;
 $EXCLUDES = "wiki|admin|spam.ui5gzd9xy|ham.uzqsnwwk|test1|majordom|maillist"  ;        # Accounts that shouldn't be put into aliases map for Connect
@@ -63,7 +62,7 @@ use constant SHELL => "/bin/sh";
 
 ## NOTE NOTE NOTE: once all users are on Exchange, change mailhost to "exchange.sfu.ca". We'll rely on a Sendmail rule
 # to rewrite it back to "sfu.ca"
-$mailhost = "connect.sfu.ca";
+$mailhost = "exchange.sfu.ca";
 $INTERNAL=1;  # running on an internal mail router
 my $hostname = hostname();
 if ($hostname =~ /^pobox/)
@@ -79,35 +78,21 @@ elsif ($hostname =~ /stage\.its\.sfu\.ca/)
 exit(0) if lockInUse( $LOCKFILE );
 acquire_lock( $LOCKFILE );
 
-if (-f $EXCHANGEUSERS)
+if (-f $CONNECTUSERS)
 {
-    open(EXCH,$EXCHANGEUSERS);
+    open(EXCH,$CONNECTUSERS);
     while(<EXCH>)
     {
     	chomp;
     	($u,$v) = split(/:/);
     	$u =~ s/\s+//g;
     	$v =~ s/\s+//g;
-    	$exchange{$u} = $v;
+    	$connect{$u} = $v;
     }
-    $have_exchange=1;
+    $have_connect=1;
     close EXCH;
 }
 
-if (-f $MANEXCHANGEUSERS)
-{
-    open(EXCH,$MANEXCHANGEUSERS);
-    while(<EXCH>)
-    {
-        chomp;
-        ($u,$v) = split(/:/);
-        $u =~ s/\s+//g;
-        $v =~ s/\s+//g;
-        $exchange{$u} = $v;
-    }
-    $have_exchange=1;
-    close EXCH;
-}
 
 my $cred = new ICATCredentials('amaint.json') -> credentialForName('amaint');
 my $TOKEN = $cred->{'token'};
@@ -152,13 +137,13 @@ foreach $line (split /\n/,$passwd) {
     print "$username:$pw:$uid:$gid:$gcos:$homedir:$shell\n" if $main::TEST;
 	if ($INTERNAL)
 	{
-	    # Certain accounts don't get forwarded to Connect.sfu.ca, even though they're full accounts
+	    # Certain accounts don't get forwarded to Exchange.sfu.ca, even though they're full accounts
 	    next if ($username =~ /^($EXCLUDES)$/);
 	}
-	if ($have_exchange && $exchange{$username}) 
+	if ($have_connect && $connect{$username}) 
     {
-		$ALIASES{"$username\0"} = $exchange{$username}."\0";
-		print ALIASESSRC "$username: ",$exchange{$username},"\n";
+		$ALIASES{"$username\0"} = $connect{$username}."\0";
+		print ALIASESSRC "$username: ",$connect{$username},"\n";
 		$count++;
 		next;
 	}	
@@ -169,23 +154,6 @@ foreach $line (split /\n/,$passwd) {
         print ALIASESSRC "$username: $username\@$mailhost\n";
     }
     $count++;
-}
-
-if (-f $ZIMBRARESOURCES)
-{
-    open(ZIM,$ZIMBRARESOURCES);
-    while(<ZIM>)
-    {
-        chomp;
-        if ($have_exchange && $exchange{$_}) 
-        {
-            $ALIASES{"$_\0"} = $exchange{$_}."\0";
-            print ALIASESSRC "$_: ",$exchange{$_},"\n";
-            next;
-        }   
-        $ALIASES{"$_\0"} = "$_\@$mailhost\0";
-        print ALIASESSRC "$_: $_\@$mailhost\n";
-    }
 }
 
 untie (%ALIASES);
