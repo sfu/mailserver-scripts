@@ -8,7 +8,7 @@ require Exporter;
 #
 # Service url for testing
 #
-use constant URLBASETST => "http://icat-rob-macpro.its.sfu.ca/cgi-bin/WebObjects/praetorian.woa/-55099/wa/";
+use constant URLBASETST => "https://stage.its.sfu.ca/cgi-bin/WebObjects/Amaint.woa/wa/";
 
 #
 # Service url for prod
