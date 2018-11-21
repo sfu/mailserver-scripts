@@ -189,10 +189,10 @@ sub _processReply {
 		syslog("notice", "executing: $cmd $list for $sender");
 		
 		if ($cmd eq 'subscribe') {
-			$result = _subscribeViaEmail( $listname, $sender );
+			$result = _subscribeViaEmail( $list, $sender );
 			$template = "sub2";
 		} elsif ($cmd eq 'unsubscribe') {
-			$result = _unsubscribeViaEmail( $listname, $sender );
+			$result = _unsubscribeViaEmail( $list, $sender );
 			$template = "unsub2";
 		} else {
 			$msg = "The following operation failed:\n\n".$cmd.' '.$list."\n\nReason:\"".cmd."\" is not a valid command";
@@ -295,7 +295,7 @@ UPD:
                 sleep 30;
                 next;
             }
-            my $msg = "_subscribeViaEmail failed for $LISTNAME, $sender";
+            my $msg = "_subscribeViaEmail failed for $listname, $sender";
 			_sendMail( "amaint\@sfu.ca", 'mlproxy error', $msg );
 		}
         last;
@@ -304,7 +304,7 @@ UPD:
 }
 
 sub _unsubscribeViaEmail {
-	my ($token, $listname, $address) = @_;
+	my ($listname, $address) = @_;
 UPD: 
     for ($attempt = 0; $attempt < 5; $attempt++) {
         eval {
@@ -324,7 +324,7 @@ UPD:
                 sleep 30;
                 next;
             }
-            my $msg = "_unsubscribeViaEmail failed for $LISTNAME, $sender :$@";
+            my $msg = "_unsubscribeViaEmail failed for $listname, $sender :$@";
 			_sendMail( "amaint\@sfu.ca", 'mlproxy error', $msg );
 		}
         last;
