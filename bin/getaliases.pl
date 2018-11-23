@@ -210,9 +210,18 @@ if (length($users)<500000) {
 }
 foreach $row ( split /\n/, $users ) {
     my ( $alias, $target ) = split /:/, $row;
+    
+    $target =~ tr/A-Z/a-z/;
+    if (!defined($USERS{"$target\0"}) && !defined($ALIASES{"$target\0"}))
+    {
+        # Amaint sends us all aliases, even for lightweight accounts.
+        # Most lightweight accounts don't actually have email, so
+        # skip aliases for target accounts that no longer exist
+        next;
+    }
     if (defined($MAILHOST))
     {
-	&process_alias("$alias: $alias\@$MAILHOST");
+	    &process_alias("$alias: $alias\@$MAILHOST");
     }
     else
     {
