@@ -59,7 +59,7 @@ $SINGLEIDALIASES    = "$ALIASESDIR/singleid_aliases";
 $LIGHTWEIGHTALIASES = "$ALIASESDIR/lightweightaliases";
 $BLOCKFILE          = "$ALIASESDIR/blockfile";
 $LOCKFILE           = "$LOCKDIR/aliases.lock";
-$MINCOUNT           = 173000;
+$MINCOUNT           = 165000;
 if ($main::TEST) {
     $ALIASMAPNAME = "/tmp/aliases";
     $ALIASFILE    = "/tmp/aliases";
