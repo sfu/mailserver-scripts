@@ -72,7 +72,12 @@ while ( <STDIN> ) {
 		}
 		$person = $amaintr->getPerson("sfuid",$_);
 		$sfuid = $_;
-		$account = $person->{username};
+		if (scalar(@$person) > 1)
+		{
+			print STDERR "WARNING: More than one person object returned for $_. Can't process!\n";
+			next;
+		}
+		$account = ${$person}[0]->{username};
 		# Generate a random 8 digit number
 		$mailalias = int(rand(90000000)) + 10000000;
 		$nsseaddress = "${survey}_survey+$mailalias\@sfu.ca";
