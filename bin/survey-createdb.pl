@@ -16,6 +16,7 @@
 #
 use Getopt::Std;
 use DB_File;
+use FindBin;
 use lib "$FindBin::Bin/../lib";
 use Amaintr;
 use Utils;
