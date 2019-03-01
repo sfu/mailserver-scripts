@@ -15,6 +15,9 @@ use constant URLBASETST => "https://stage.its.sfu.ca/cgi-bin/WebObjects/Amaint.w
 #
 use constant URLBASE => "https://amaint.sfu.ca/cgi-bin/WebObjects/AmaintRest.woa/wa/";
 
+use constant URLRESTBASE => "https://amaint.sfu.ca/cgi-bin/WebObjects/AmaintRest.woa/ra/";
+
+
 use constant TXT => 1;
 
 sub new {
@@ -28,6 +31,8 @@ sub new {
 	$self->{isProd} = !$isTest;
 	$self->{baseUrl} = URLBASETST;
 	$self->{baseUrl} = URLBASE if $self->{isProd};
+    # For new v3 REST calls:
+    $self->{restUrl} = URLRESTBASE;
 	_stdout("baseUrl is ".$self->{baseUrl}) if $self->{isTest};
 	return $self;
 }
@@ -301,5 +306,42 @@ sub unsetMigrateFlag {
     
     my $url = $self->{baseUrl} . "unsetMigrateFlag?username=$username&token=" . $self->{token};
 	return _httpGet($url, TXT);
+}
+
+sub getLogin {
+    my $self = shift;
+    my $username = shift;
+
+    unless ($self->{token}) {
+        _stderr("No token");
+        return '';
+    }
+    unless ($username) {
+        return 'err No username supplied';
+    }
+
+    my $url = $self->{restUrl} . "login/$username.json?sfu_token=" . $self->{token};
+    return _httpGet($url);
+}
+
+sub getPerson {
+    my $self = shift;
+    my $key = shift;
+    my $value = shift;
+
+    unless ($self->{token}) {
+        _stderr("No token");
+        return '';
+    }
+    unless ($key eq "username" || $key eq "surname" || $key eq "sfuid" || $key eq "externalEmail" || $key eq "libraryBarcode" || $key eq "sponsor" ) {
+        return 'err No valid search key supplied. Must be one of "username", "surname", "sfuid", "externalEmail", "libraryBarcode", "sponsor"';
+    }
+
+    unless ($value) {
+        return 'err no search value specified';
+    }
+
+    my $url = $self->{restUrl} . "person.json?$key=$value&sfu_token=" . $self->{token};
+    return _httpGet($url);
 }
 
