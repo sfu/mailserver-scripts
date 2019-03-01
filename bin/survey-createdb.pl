@@ -38,7 +38,7 @@ my $survey = $opt_s;
 my $cred  = new ICATCredentials('amaint.json')->credentialForName('amaint');
 my $TOKEN = $cred->{'token'};
 
-my $amaintr = new AmaintrTest( $TOKEN, $main::TEST );
+my $amaintr = new Amaintr( $TOKEN, $main::TEST );
 
 usage() if (!$survey);
 
