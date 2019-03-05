@@ -37,9 +37,9 @@ my $mailx = $tempFile ;
 open (MAILX, ">$mailx") ;
 
 while ( <> ) {
-	if ( $_ =~ /^To:\s+.*<?[a-z]+_survey\+\d+\@sfu.ca/ ) {
+	if ( $_ =~ /^To:\s+.*?<?[a-z]+_survey\+\d+\@sfu.ca/ ) {
 		my $alias = $_ ;
-		$alias =~ /^To:\s+.*<?([a-z]+)_survey\+([0-9]+)\@sfu\.ca/ ;
+		$alias =~ /^To:\s+.*?<?([a-z]+)_survey\+([0-9]+)\@sfu\.ca/ ;
 		$matchAlias = $2 ;
 		$map = $1;
 		openAliases($map);
