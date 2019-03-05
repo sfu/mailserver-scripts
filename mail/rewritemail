@@ -37,25 +37,27 @@ my $mailx = $tempFile ;
 open (MAILX, ">$mailx") ;
 
 while ( <> ) {
-        if ( $_ =~ "To:\ [a-z]+_survey\+" ) {
-                my $alias = $_ ;
-                $alias =~ /To:\ ([a-z]+)_survey\+([0-9]+)\@sfu\.ca/ ;
+	if ( $_ =~ /^To:\s+.*<?[a-z]+_survey\+\d+\@sfu.ca/ ) {
+		my $alias = $_ ;
+		$alias =~ /^To:\s+.*<?([a-z]+)_survey\+([0-9]+)\@sfu\.ca/ ;
 		$matchAlias = $2 ;
 		$map = $1;
 		openAliases($map);
 		if ( $aliases{$matchAlias} ) {
-	                print LOG scalar localtime() . "\t-\t $matchAlias - sent to $aliases{$matchAlias} \n" ;
-	       	        print MAILX "To: $aliases{$matchAlias}\n" ;
+			print LOG scalar localtime() . "\t-\t $matchAlias - sent to $aliases{$matchAlias} \n" ;
+			print MAILX "To: $aliases{$matchAlias}\n" ;
 		} else {
+			print LOG scalar localtime() . "\t$alias";
 			print LOG scalar localtime() . "\tERROR\t $matchAlias is not in $map, sending to nobody\n" ;
 			print MAILX 'To: nobody@sfu.ca' . "\n" ;
 		}
-        } else {
-                print MAILX $_ ;
-        }
+	} else {
+		print MAILX $_ ;
+	}
 }
 close ( FH ) ;
 close (MAILX) ;
+$map = "default" if ($map eq "");
 `cat $mailx | /usr/sbin/sendmail -t` ;
 `cat $mailx >> $SurveyDBPath/${map}-survey-outgoing.txt`;
 unlink( $mailx ) ;
@@ -64,6 +66,6 @@ untie %aliases ;
 close ( LOG ) ;
 
 sub openAliases() {
-    	my $map = shift;
+	my $map = shift;
 	tie %aliases,"DB_File","$SurveyDBPath/".$map."_survey.db",O_RDONLY,0666,$DB_HASH ;
 }
