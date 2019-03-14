@@ -14,9 +14,9 @@
 
 use lib '/opt/amaint/lib';
 use Net::Stomp;
-use XML::LibXML;
-use HTTP::Request::Common qw(GET POST PUT DELETE);
-use LWP::UserAgent;
+use XML::Simple;
+use LWP;
+use URI::Escape;
 use ICATCredentials;
 
 
@@ -38,7 +38,7 @@ my $mquser = $cred->{'amquser'};
 my $mqpass = $cred->{'amqpass'};
 my $casuser = $cred->{'casuser'};
 my $caspass = $cred->{'caspass'};
-my $casbaseurl = $cred->{'casbaseurl'};
+my $cas_server = $cred->{'casbaseurl'};
 
 
 $inqueue = "/queue/ICAT.amaint.toCas";
@@ -113,7 +113,7 @@ while (1) {
     		{
 		    	# Got a timeout or null body back. Fall through to sleep and try again in a bit
 		    	$error .="No message response from Broker after waiting $timeout seconds!";
-		    	$failed=1;
+		    	$failed=2;
 		    }
 		}
 		else
@@ -126,6 +126,14 @@ while (1) {
 		}
     } while ((!$failed) || defined($frame));
     $stomp->disconnect;
+  }
+
+  if ($failed == 2)
+  {
+      # Got more than $maxtimeouts timeouts, but that just means no activity.
+      # Sleep a few seconds and reconnect
+      sleep 3;
+      next;
   }
 
   # Sleep for 5 minutes and try again
@@ -144,29 +152,18 @@ while (1) {
 sub process_msg
 {
     $xmlbody = shift;
-    $xdom  = XML::LibXML->load_xml(
-             string => $xmlbody
-           );
-
-    # First, generate an XPath object from the XML
-    $xpc = XML::LibXML::XPathContext->new($xdom);
+    $xref = XMLin($xmlbody);
+    my $clear=0;
 
     # See if we have a syncLogin message
-    if ($xpc->exists("/compromisedLogin"))
+    if (defined($xref->{"compromisedLogin"}))
     {
-    	$msgtype = $xpc->findvalue("/compromisedLogin/messageType");
-    	$username = $xpc->findvalue("/compromisedLogin/username");
-    	$serial = $xpc->findvalue("/compromisedLogin/serial");
-
-    	if ($msgtype =~ /request/i)
-    	{
-    		if ($xpc->findvalue("/compromisedLogin/settings/clearCASsessions") !~ /false/i)
-            {
-                ($rcCas,@sessions) = clearCASsessions($username,$casuser,$caspass,$casbaseurl);
-                send_response($username,$serial,$rcCas,@sessions);
-            }
-    		
-    	}
+        $xpc = $xref->{"compromisedLogin"};
+    }
+    elsif (defined($xref->{"clearCasSessions"}))
+    {
+        $xpc = $xref->{"clearCasSessions"};
+        $clear=1;
     }
     else
     {
@@ -176,141 +173,98 @@ sub process_msg
 			print "Skipping unrecognized JMS message type:\n$line1\n$line2\n$junk";
 		}
 		# process other JMS messages?
+
+        return 1;
+    }
+    my $msgtype = $xpc->{"messageType"};
+    my $username = $xpc->{"username"};
+    my $serial = $xpc->{"serial"};
+    my $response_queue = $xpc->{"respond"};
+
+
+    if ($clear || ($msgtype =~ /request/i && $xpc->{"settings"}->{"clearCASsessions"} !~ /false/i))
+    {
+        ($rcCas,@sessions) = clearCASsessions($username,$casuser,$caspass);
+        if ($clear)
+        {
+            if (defined($response_queue))
+            {
+                send_response($response_queue,"clearCasSessions",$username,$serial,$rcCas,@sessions);
+            }
+        }
+        else
+        {
+            send_response($responsequeue,"compromisedLogin",$username,$serial,$rcCas,@sessions);
+        }
     }
     
     return 1;
 }
 
-sub cleanup()
-{
-	$msgnum = shift;
-	emailAdmins($msgnum) if ($msg{$msgnum}->{settings} !~ /emailAdmins=false/i);
-	delete($msg{$msgnum});
-}
-
 sub clearCASsessions()
 {
-	my ($u,$casAdminUser,$casAdminPass,$casBaseURL) = @_;
-	
-	$casRestURL = $casBaseURL . "/rest/v1/";
+	my ($u,$casAdminUser,$casAdminPass) = @_;
 
-	$casURL = $casRestURL . "tickets";
+    $ua = LWP::UserAgent->new;
 
-	$ua = LWP::UserAgent->new;
+    my $tgt = cas_rest_login($casAdminUser,$casAdminPass);
 
-	# Authenticate to CAS and get a TGT
-	$resp = $ua->post($casURL, {
-				username => $casAdminUser,
-				password => $casAdminPass
-		});
-	if ($resp->content eq "" || !$resp->is_success)
-	{
-		return "CAS Error: " . $resp->code . " " . $resp->content;
-	}
-
-	if ($resp->content !~ /(TGT-[^\"]+)\"/)
-	{
-		return "CAS Error. No TGT found in response: " . $resp->content;
-	}
-	else
-	{
-		$casTGT = $1;
-		$casURL = $casURL . "/$casTGT";
-	}
-
-	# Got the TGT, get a Service Ticket for the activeSessions service
-	$casSessionURL = $casBaseURL . "activeSessions";
-	$resp = $ua->post($casURL, {
-			service => $casSessionURL
-		});
-	if (!$resp->is_success)
-	{
-	    return "CAS Error: Unable to communicate with CAS to get sessions. ";
-	}
-	$casServiceTicket = $resp->content;
-
-
-	# Now we've got a Service Ticket, we can finally fetch the sessions
-	$resp = $ua->post($casSessionURL, {
-			ticket => $casServiceTicket,
-			id => "$u:sfu"
-		});
-	if (!$resp->is_success)
-	{
-	    return "CAS Error: Unable to communicate with CAS to get sessions. ";
-	}
-
-	# parse casResponse here (an XML doc)
-    $sessionCount = 0;
-    @casSessions = ();
-
-    foreach $line (split("\n",$resp->content)) 
+    if (!defined($TGT))
     {
-        if ($line =~ /<cas:activeSessionsFailure code='INVALID ACCESS'>/) 
-        {
-            return "CAS Error: No Access to view or kill CAS sessions. ";
-        } 
-        elsif ($line =~ /<cas:activeSessionsFailure code='INVALID PT'>/) 
-        {
-            return "CAS Error: CAS session expired; can't kill CAS sessions. ";
-        } 
-        elsif ($line =~ /<cas:activeSessionsSuccess>/) 
-        {
-            $sessionCount = 0;
-        }
-        elsif ($line =~ /<cas:session>/) 
-        {
-            $sessionDate = "";
-            $sessionTGT = "";
-            $sessionIP = "";
-        } 
-        elsif ($line =~ /<cas:id>(.*)<\/cas:id>/) 
-        {
-        	$essionTGT = $1;
-        }
-        elsif ($line =~ /<cas:time>(.*)<\/cas:time>/) 
-        {
-        	$sessionTime = $1;
-        	# Don't know what $sessionTime looks like so can't parse it yet.
-        	#$sessionDate = 
-        } 
-        elsif ($line =~ /<cas:ip>(.*)<\/cas:ip>/) 
-        {
-            $sessionIP = $1;
-        } 
-        elsif ($line =~ /<\/cas:session>/) 
-        {
-            $sessionCount++;
-            push (@casSessions,"$sessionTGT:$sessionIP:$sessionDate");
-        }
+        return "CAS Error. REST login failed";
     }
 
-    if ($sessionCount == 0) {
-        return "No CAS sessions to kill. ";
-    }
+      # Got a basic login ticket, now get a service ticket for the activeSessions service
+    my $svcurl = $cas_server . "/activeSessions";
+	my $res = post_page_raw($cas_server."/v1/tickets/$tgt", ["service=$svcurl"]);
+	if (!$res->is_success)
+	{
+        print "Failed to get Service Ticket\n";
+	    return 0;
+	}
+	my $casServiceTicket = $res->content;
 
-    $result = "";
-    foreach $sess (@casSessions)
+    # Make the activeSessions request
+    $res = post_page_raw($cas_server."/activeSessions",["ticket=$casServiceTicket","id=$u:sfu"]);
+    if (!$res->is_success)
+	{
+        return "CAS Error: Unable to communicate with CAS to get sessions. ";
+	}
+
+    my $xmlref = XMLin($res->content);
+
+   # Verify the right elements are present
+    return "CAS Error: No CAS Sessions retrieved" if (!defined($xmlref->{'cas:activeSessionsSuccess'}->{'cas:session'}));
+
+    # Walk the results and delete all tickets except the one for this session
+    my $sessions = $xmlref->{'cas:activeSessionsSuccess'}->{'cas:session'};
+    $killed = 0;
+    my @results;
+    foreach my $s (@$sessions)
     {
-    	($ticket,$ip,$date) = split(/:/,$sess,3);
-        $casURLtemp = $casRestURL . "tickets/" . $ticket;  # https://cas.sfu.ca/cas/rest/v1/tickets/TGT-180198-cEhc5z6cqqdpgeO2jVFdhezBDyBvqalYlQJ-WdDjG
-
-        $resp = $ua->delete($casURLtemp);
-        if ($resp->is_success)
+        $res = $ua->delete("$cas_server/v1/tickets/".$s->{'cas:id'});
+        if ($res->is_success)
         {
-        	$result .= "Deleted CAS session from $ip at $date. ";
+            $killed++;
+            push (@results,$s->{'cas:ip'} . ":" . $s->{'cas:time'});
+        }
+        else
+        {
+            push (@results, $s->{'cas:ip'} . "WARNING: Couldn't kill TGT " . $s->{'cas:id'};
         }
     }
 
-    return $result,@casSessions;
+    return "No CAS sessions killed" if (!$killed);
+
+    return("Killed $killed CAS sessions",@results);
 
 }
 
 sub send_response()
 {
-    my ($user,$serial,$status,@sessiondata) = @_;
+    my ($response_queue,$msgtype,$user,$serial,$status,@sessiondata) = @_;
     $responsemsg = <<EOF;
-<compromisedLogin>
+<$msgtype>
    <messageType>Response</messageType>
    <username>$user</username>
    <serial>$serial</serial>
@@ -322,7 +276,7 @@ EOF
         $responsemsg .= "   <casSessions>\n";
         foreach $s (@sessiondata)
         {
-            ($junk,$ip,$s_date) = split(/:/,$s,3);
+            ($junk,$ip,$s_date) = split(/:/,$s,2);
             $responsemsg .= "     <casSession>\n";
             $responsemsg .= "       <ipAddress>$ip</ipAddress>\n";
             $responsemsg .= "       <date>$s_date</date>\n";
@@ -330,10 +284,55 @@ EOF
         }
         $responsemsg .= "   </casSessions>\n";
     }
-    $responsemsg .= "</compromisedLogin>\n";
+    $responsemsg .= "</$msgtype>\n";
 
     $stomp->send({
-        destination => $responsequeue,
+        destination => $response_queue,
         body        => $responsemsg
         });
+}
+
+# Post to a URL and return the raw content
+sub post_page_raw
+{
+    my ($url,$data,$follow_redirects) = @_;
+    my $req = HTTP::Request->new(POST => $url);
+    $req->content_type('application/x-www-form-urlencoded');
+
+    if (defined($data))
+    {
+        my $postdata = "";
+        foreach $l (@$data)
+        {
+            ($k,$v) = split(/=/,$l,2);
+            $val = uri_escape($v);
+            $postdata .= ($postdata eq "") ? "" : "&";
+            $postdata .= "$k=$val";
+    	}
+    	$req->content($postdata);
+        print "Sending: \n$postdata\n\n" if $opt_v;
+    }
+	     
+    my $res = ($follow_redirects) ? $ua->request($req) : $ua->simple_request($req);
+
+    return $res;
+}
+
+sub cas_rest_login
+{
+    my ($u,$p) = @_;
+    my $TGT;
+
+    my $res =  post_page_raw("$cas_server/v1/tickets", ["username=$u","password=$p"] );
+    if (!$res->is_success)
+    {
+        return undef;
+    }
+
+    $loc = $res->header("Location");
+    if ($loc =~ /v1\/tickets\/(TGT.+)/)
+    {
+        $TGT = $1;
+    }
+    return $TGT;
 }
