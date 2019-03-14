@@ -24,7 +24,7 @@ $debug=0;
 
 # Fetch all settings from the "Credentials" file
 my $cred  = new ICATCredentials('activemq.json')->credentialForName('client');
-foreach $s qw(primary_host secondary_host stomp_port amquser amqpass casuser caspass casbaseurl)
+foreach $s (qw(primary_host secondary_host stomp_port amquser amqpass casuser caspass casbaseurl))
 {
     if (!defined($cred->{$s}))
     {
@@ -196,6 +196,10 @@ sub process_msg
         {
             send_response($responsequeue,"compromisedLogin",$username,$serial,$rcCas,@sessions);
         }
+
+        # Log results to STDOUT
+        print "Command: clearCasSessions for user $username\n";
+        print "Result: $rcCas\nSessions: ",join("\n",@sessions,"");
     }
     
     return 1;
@@ -214,8 +218,10 @@ sub clearCASsessions()
         return "CAS Error. REST login failed";
     }
 
-      # Got a basic login ticket, now get a service ticket for the activeSessions service
-    my $svcurl = $cas_server . "/activeSessions";
+    # Got a basic login ticket, now get a service ticket for the activeSessions service
+    # The activeSessions service has a hard-coded Service string, regardless of what CAS
+    # instance it's running on
+    my $svcurl = "https://cas.sfu.ca/cas/activeSessions";
 	my $res = post_page_raw($cas_server."/v1/tickets/$tgt", ["service=$svcurl"]);
 	if (!$res->is_success)
 	{
@@ -250,7 +256,7 @@ sub clearCASsessions()
         }
         else
         {
-            push (@results, $s->{'cas:ip'} . "WARNING: Couldn't kill TGT " . $s->{'cas:id'};
+            push (@results, $s->{'cas:ip'} . "WARNING: Couldn't kill TGT " . $s->{'cas:id'});
         }
     }
 
