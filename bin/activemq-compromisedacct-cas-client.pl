@@ -18,9 +18,12 @@ use XML::Simple;
 use LWP;
 use URI::Escape;
 use ICATCredentials;
+use Getopt::Std;
+use Data::Dumper;
 
+getopts("v");
 
-$debug=0;
+$debug = $opt_v;
 
 # Fetch all settings from the "Credentials" file
 my $cred  = new ICATCredentials('activemq.json')->credentialForName('client');
@@ -132,6 +135,7 @@ while (1) {
   {
       # Got more than $maxtimeouts timeouts, but that just means no activity.
       # Sleep a few seconds and reconnect
+      print "No frames in $timeout seconds\n" if $debug;
       sleep 3;
       next;
   }
@@ -154,6 +158,8 @@ sub process_msg
     $xmlbody = shift;
     $xref = XMLin($xmlbody);
     my $clear=0;
+
+    print "Processing message:\n$xmlbody\n" if $debug;
 
     # See if we have a syncLogin message
     if (defined($xref->{"compromisedLogin"}))
@@ -239,6 +245,8 @@ sub clearCASsessions()
 
     my $xmlref = XMLin($res->content);
 
+    print "CAS activeSessions data:\n",Dumper($xmlref),"\n" if $debug;
+
    # Verify the right elements are present
     return "CAS Error: No CAS Sessions retrieved" if (!defined($xmlref->{'cas:activeSessionsSuccess'}->{'cas:session'}));
 
@@ -296,6 +304,8 @@ EOF
         destination => $response_queue,
         body        => $responsemsg
         });
+
+    print "Response Message:\n$responsemsg\n" if $debug;
 }
 
 # Post to a URL and return the raw content
