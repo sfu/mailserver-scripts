@@ -159,7 +159,7 @@ sub process_msg
     $xref = XMLin($xmlbody);
     my $clear=0;
 
-    print "Processing message:\n$xmlbody\n" if $debug;
+    print "Processing message:\n$xmlbody\n As: ",Dumper($xref),"\n" if $debug;
 
     # See if we have a syncLogin message
     if (defined($xref->{"compromisedLogin"}))
