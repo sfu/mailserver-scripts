@@ -219,9 +219,9 @@ sub clearCASsessions()
 
     my $tgt = cas_rest_login($casAdminUser,$casAdminPass);
 
-    if (!defined($TGT))
+    if (!defined($tgt))
     {
-        return "CAS Error. REST login failed";
+        return "500 REST login failed";
     }
 
     # Got a basic login ticket, now get a service ticket for the activeSessions service
@@ -232,7 +232,7 @@ sub clearCASsessions()
 	if (!$res->is_success)
 	{
         print "Failed to get Service Ticket\n";
-	    return 0;
+	    return "500 Failed to get CAS Service Ticket";
 	}
 	my $casServiceTicket = $res->content;
 
@@ -240,7 +240,7 @@ sub clearCASsessions()
     $res = post_page_raw($cas_server."/activeSessions",["ticket=$casServiceTicket","id=$u:sfu"]);
     if (!$res->is_success)
 	{
-        return "CAS Error: Unable to communicate with CAS to get sessions. ";
+        return "500 ". $res->status_line;
 	}
 
     my $xmlref = XMLin($res->content);
@@ -248,7 +248,8 @@ sub clearCASsessions()
     print "CAS activeSessions data:\n",Dumper($xmlref),"\n" if $debug;
 
    # Verify the right elements are present
-    return "CAS Error: No CAS Sessions retrieved" if (!defined($xmlref->{'cas:activeSessionsSuccess'}->{'cas:session'}));
+    return "500 No CAS Sessions retrieved" if (!defined($xmlref->{'cas:activeSessionsSuccess'}));
+    return "404 No CAS Sessions" if (!defined($xmlref->{'cas:activeSessionsSuccess'}->{'cas:session'}));
 
     # Walk the results and delete all tickets except the one for this session
     my $sessions = $xmlref->{'cas:activeSessionsSuccess'}->{'cas:session'};
@@ -268,9 +269,9 @@ sub clearCASsessions()
         }
     }
 
-    return "No CAS sessions killed" if (!$killed);
+    return "200 No CAS sessions killed" if (!$killed);
 
-    return("Killed $killed CAS sessions",@results);
+    return("200 Killed $killed CAS sessions",@results);
 
 }
 
@@ -293,7 +294,7 @@ EOF
             ($junk,$ip,$s_date) = split(/:/,$s,2);
             $responsemsg .= "     <casSession>\n";
             $responsemsg .= "       <ipAddress>$ip</ipAddress>\n";
-            $responsemsg .= "       <date>$s_date</date>\n";
+            $responsemsg .= "       <time>",$s_date/1000,"</time>\n";
             $responsemsg .= "     </casSession>\n";
         }
         $responsemsg .= "   </casSessions>\n";
@@ -330,6 +331,7 @@ sub post_page_raw
     }
 	     
     my $res = ($follow_redirects) ? $ua->request($req) : $ua->simple_request($req);
+    print "RESULT: ",$res->status_line,"\n" if $opt_v;
 
     return $res;
 }
