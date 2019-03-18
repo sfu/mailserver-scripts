@@ -301,7 +301,7 @@ EOF
             ($junk,$ip,$s_date) = split(/:/,$s,2);
             $responsemsg .= "     <casSession>\n";
             $responsemsg .= "       <ipAddress>$ip</ipAddress>\n";
-            $responsemsg .= "       <time>",$s_date/1000,"</time>\n";
+            $responsemsg .= "       <time>".int($s_date/1000)."</time>\n";
             $responsemsg .= "     </casSession>\n";
         }
         $responsemsg .= "   </casSessions>\n";
