@@ -15,6 +15,7 @@
 use lib '/opt/amaint/lib';
 use Net::Stomp;
 use XML::Simple;
+use JSON;
 use LWP;
 use URI::Escape;
 use ICATCredentials;
@@ -121,6 +122,7 @@ while (1) {
 		}
 		else
 		{
+            $json = ($frame->content_type =~ /json/);
 		    if (process_msg($frame->body))
 		    {
 			# message was processed successfully. Ack it
@@ -156,7 +158,14 @@ while (1) {
 sub process_msg
 {
     $xmlbody = shift;
-    $xref = XMLin($xmlbody, KeepRoot => 1);
+    if ($json)
+    {
+        $xref = json_decode($json);
+    }
+    else
+    {
+        $xref = XMLin($xmlbody, KeepRoot => 1);
+    }
     my $clear=0;
 
     print "Processing message:\n$xmlbody\n As: ",Dumper($xref),"\n" if $debug;
@@ -285,6 +294,16 @@ sub clearCASsessions()
 sub send_response()
 {
     my ($response_queue,$msgtype,$user,$serial,$status,@sessiondata) = @_;
+    $responseref = {};
+    $responseref->{$msgtype} = {
+        messageType => "Response",
+        username => $user,
+        serial => $serial,
+        serviceName => "CAS",
+        statusMsg => $stats,
+        casSessions => []
+    };
+
     $responsemsg = <<EOF;
 <$msgtype>
    <messageType>Response</messageType>
@@ -304,6 +323,11 @@ EOF
             $responsemsg .= "       <time>".int($s_date/1000)."</time>\n";
             $responsemsg .= "       <result>$msg</result>\n";
             $responsemsg .= "     </casSession>\n";
+            push ($responseref->{$msgtype}->{casSessions}, {
+                ipAddress => $ip,
+                time => int($s_date/1000),
+                result => $msg
+            });
         }
         $responsemsg .= "   </casSessions>\n";
     }
@@ -314,7 +338,19 @@ EOF
         body        => $responsemsg
         });
 
-    print "Response Message:\n$responsemsg\n" if $debug;
+    if ($debug)
+    {
+        print "Response Message:\n$responsemsg\n";
+        print "Dump: ",Dumper($responseref);
+        if ($json)
+        {
+            print "JSONout:",json_encode($responseref);
+        }
+        else
+        {
+            print "XMLout: \n",XMLout($responseref);
+        }
+    }
 }
 
 # Post to a URL and return the raw content
