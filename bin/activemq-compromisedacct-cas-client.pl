@@ -156,7 +156,7 @@ while (1) {
 sub process_msg
 {
     $xmlbody = shift;
-    $xref = XMLin($xmlbody);
+    $xref = XMLin($xmlbody, KeepRoot => 1);
     my $clear=0;
 
     print "Processing message:\n$xmlbody\n As: ",Dumper($xref),"\n" if $debug;
