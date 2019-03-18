@@ -255,6 +255,13 @@ sub clearCASsessions()
     my $sessions = $xmlref->{'cas:activeSessionsSuccess'}->{'cas:session'};
     $killed = 0;
     my @results;
+
+    # If there was only one session, convert to an Array with one element
+    if (ref($sessions) ne "ARRAY" )
+    {
+        $sessions = [$sessions];
+    }
+
     foreach my $s (@$sessions)
     {
         $res = $ua->delete("$cas_server/v1/tickets/".$s->{'cas:id'});
