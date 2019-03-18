@@ -272,7 +272,7 @@ sub clearCASsessions()
         }
         else
         {
-            push (@results, $s->{'cas:ip'} . "0:WARNING: Couldn't kill TGT " . $s->{'cas:id'});
+            push (@results, $s->{'cas:ip'} . ":" . $s->{'cas:time'} . ":WARNING: Couldn't kill TGT " . $s->{'cas:id'});
         }
     }
 
