@@ -268,11 +268,11 @@ sub clearCASsessions()
         if ($res->is_success)
         {
             $killed++;
-            push (@results,$s->{'cas:ip'} . ":" . $s->{'cas:time'});
+            push (@results,$s->{'cas:ip'} . ":" . $s->{'cas:time'} . ":SUCCESS");
         }
         else
         {
-            push (@results, $s->{'cas:ip'} . "WARNING: Couldn't kill TGT " . $s->{'cas:id'});
+            push (@results, $s->{'cas:ip'} . "0:WARNING: Couldn't kill TGT " . $s->{'cas:id'});
         }
     }
 
@@ -298,10 +298,11 @@ EOF
         $responsemsg .= "   <casSessions>\n";
         foreach $s (@sessiondata)
         {
-            ($junk,$ip,$s_date) = split(/:/,$s,2);
+            ($ip,$s_date,$msg) = split(/:/,$s,3);
             $responsemsg .= "     <casSession>\n";
             $responsemsg .= "       <ipAddress>$ip</ipAddress>\n";
             $responsemsg .= "       <time>".int($s_date/1000)."</time>\n";
+            $responsemsg .= "       <result>$msg</result>\n";
             $responsemsg .= "     </casSession>\n";
         }
         $responsemsg .= "   </casSessions>\n";
