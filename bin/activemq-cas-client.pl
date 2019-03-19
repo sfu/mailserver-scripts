@@ -128,7 +128,7 @@ while (1) {
             }
             else
             {
-                $json = ($frame->content_type =~ /json/);
+                $json = ($frame->content-type =~ /json/);
                 if (process_msg($frame->body))
                 {
                     # message was processed successfully. Ack it
@@ -321,11 +321,13 @@ sub send_response()
     }
    
    $responsemsg = ($json) ? encode_json($responseref) : XMLout($responseref, KeepRoot => 1, NoAttr => 1);
+   $content_type = ($json) ? "application/json" : "application/xml";
 
     $stomp->send({
-        destination => $response_queue,
-        body        => $responsemsg
-        });
+        destination  => $response_queue,
+        content-type => $content_type,
+        body         => $responsemsg
+    });
 
     print "Response Message:\n$responsemsg\n" if $debug;
 }
