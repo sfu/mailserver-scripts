@@ -166,7 +166,7 @@ sub process_msg
     $xmlbody = shift;
     if ($json)
     {
-        $xref = decode_json($json);
+        $xref = decode_json($xmlbody);
     }
     else
     {
@@ -324,9 +324,9 @@ sub send_response()
    $content_type = ($json) ? "application/json" : "application/xml";
 
     $stomp->send({
-        destination  => $response_queue,
-        content-type => $content_type,
-        body         => $responsemsg
+        destination    => $response_queue,
+        "content-type" => $content_type,
+        body           => $responsemsg
     });
 
     print "Response Message:\n$responsemsg\n" if $debug;
