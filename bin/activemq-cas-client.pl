@@ -128,7 +128,7 @@ while (1) {
             }
             else
             {
-                $json = ($frame->content-type =~ /json/);
+                $json = ($frame->content_type =~ /json/);
                 if (process_msg($frame->body))
                 {
                     # message was processed successfully. Ack it
