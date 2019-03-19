@@ -1,16 +1,22 @@
 #!/usr/bin/perl
 #
-# Process JMS messages for Compromised Accounts
+# Process JMS messages for requests to kill CAS sessions
 # Connect to the JMS Broker at either the $primary_host or $secondary_host and wait
 # for messages. Upon receipt of a message, process it 
 #
-# This script will handle anything not handled by other downstream systems. Currently, that's:
+# Inbound message requests come via the ICAT.amaint.toCas queue. Either XML or JSON are
+# supported and the same format will be used for responses (if a response is requested)
+# Format of a request (in XML):
+#<clearCasSessions>
+#  <username>kipling</username>
+#  <serial>123456789</serial>
+#  <respond>ICAT.casAdmin</respond>
+#</clearCasSessions>
 #
-# - Call Amaint to reset password if msg->settings->resetpassword != false
-# - Call REST server to reset Zimbra settings if msg->settings->resetzimbrasettings != false
-# - Call CAS to clear CAS tokens if msg->settings->clearCASsessions != false
-# - Send email to user if msg->settings->emailUser != false
-# - Send email to admins if msg->settings->emailAdmins != false
+# The 'serial' and 'respond' attributes are optional. If left out, no response will be sent.
+# You may also send the request as type "compromisedLogin" instead of "clearCasSessions". 
+# Responses for this message type are always sent to ICAT.response.toAmaintsupport
+
 
 use lib '/opt/amaint/lib';
 use Net::Stomp;
@@ -65,90 +71,90 @@ $| = 1;
 
 while (1) {
 
-  $failed=0;
-  eval { $stomp = Net::Stomp->new( { hostname => $primary_host, port => $port, timeout => 10 }) };
+    $failed=0;
+    eval { $stomp = Net::Stomp->new( { hostname => $primary_host, port => $port, timeout => 10 }) };
 
-  if($@ || !($stomp->connect( { login => $mquser, passcode => $mqpass })))
-  {
-    # Oh oh, primary failed
-    if (defined($secondary_host))
+    if($@ || !($stomp->connect( { login => $mquser, passcode => $mqpass })))
     {
-		eval { $stomp = Net::Stomp->new( { hostname => $secondary_host, port => $port, timeout => 10 }) };
-		if ($@)
-		{
-		    $failed = 1;
-		    $error.=$@;
-		}
-		elsif(!($stomp->connect( { login => $mquser, passcode => $mqpass })))
-		{
-		    $failed=1;
-		    $error.="Master/Slave pair DOWN. Brokers at $primary_host and $secondary_host port $port unreachable!";
-		}
-		else
-		{
-		    $error.="Primary Broker at $primary_host port $port down. Slave at $secondary_host has taken over. ";
-		}
-    }
-    else
-    {
-		$failed=1;
-		$error="Broker $primary_host on port $port unreachable";
-    }
-  }
-
-  if (!$failed)
-  {
-    # First subscribe to messages from the queues
-    $stomp->subscribe(
-        {   destination             => $inqueue,
-            'ack'                   => 'client',
-            'activemq.prefetchSize' => 1
+        # Oh oh, primary failed
+        if (defined($secondary_host))
+        {
+            eval { $stomp = Net::Stomp->new( { hostname => $secondary_host, port => $port, timeout => 10 }) };
+            if ($@)
+            {
+                $failed = 1;
+                $error.=$@;
+            }
+            elsif(!($stomp->connect( { login => $mquser, passcode => $mqpass })))
+            {
+                $failed=1;
+                $error.="Master/Slave pair DOWN. Brokers at $primary_host and $secondary_host port $port unreachable!";
+            }
+            else
+            {
+                $error.="Primary Broker at $primary_host port $port down. Slave at $secondary_host has taken over. ";
+            }
         }
-    );
+        else
+        {
+            $failed=1;
+            $error="Broker $primary_host on port $port unreachable";
+        }
+    }
 
-    $counter = 0;
-    do {
-    	$frame = $stomp->receive_frame({ timeout => $timeout });
+    if (!$failed)
+    {
+        # First subscribe to messages from the queues
+        $stomp->subscribe(
+            {   destination             => $inqueue,
+                'ack'                   => 'client',
+                'activemq.prefetchSize' => 1
+            }
+        );
 
-    	if (!$frame)
-    	{
-    		$counter++;
-    		if ($counter >= $maxtimeouts)
-    		{
-		    	# Got a timeout or null body back. Fall through to sleep and try again in a bit
-		    	$error .="No message response from Broker after waiting $timeout seconds!";
-		    	$failed=2;
-		    }
-		}
-		else
-		{
-            $json = ($frame->content_type =~ /json/);
-		    if (process_msg($frame->body))
-		    {
-			# message was processed successfully. Ack it
-			$stomp->ack( {frame => $frame} );
-		    }
-		}
-    } while ((!$failed) || defined($frame));
-    $stomp->disconnect;
-  }
+        $counter = 0;
+        do {
+            $frame = $stomp->receive_frame({ timeout => $timeout });
 
-  if ($failed == 2)
-  {
-      # Got more than $maxtimeouts timeouts, but that just means no activity.
-      # Sleep a few seconds and reconnect
-      print "No frames in $timeout seconds\n" if $debug;
-      sleep 3;
-      next;
-  }
+            if (!$frame)
+            {
+                $counter++;
+                if ($counter >= $maxtimeouts)
+                {
+                    # Got a timeout or null body back. Fall through to sleep and try again in a bit
+                    $error .="No message response from Broker after waiting $timeout seconds!";
+                    $failed=2;
+                }
+            }
+            else
+            {
+                $json = ($frame->content_type =~ /json/);
+                if (process_msg($frame->body))
+                {
+                    # message was processed successfully. Ack it
+                    $stomp->ack( {frame => $frame} );
+                }
+            }
+        } while ((!$failed) || defined($frame));
+        $stomp->disconnect;
+    }
 
-  # Sleep for 5 minutes and try again
-  if ($failed)
-  {
-     print STDERR "Error: $error\n. Sleeping and retrying\n";
-     $failed = 0;
-  }
-  sleep(300);
+    if ($failed == 2)
+    {
+        # Got more than $maxtimeouts timeouts, but that just means no activity.
+        # Sleep a few seconds and reconnect
+        print "No frames in $timeout seconds\n" if $debug;
+        sleep 3;
+        next;
+    }
+
+    # Sleep for 5 minutes and try again
+    if ($failed)
+    {
+        print STDERR "Error: $error\n. Sleeping and retrying\n";
+        $failed = 0;
+    }
+    sleep(300);
 
 }
 
@@ -160,7 +166,7 @@ sub process_msg
     $xmlbody = shift;
     if ($json)
     {
-        $xref = json_decode($json);
+        $xref = decode_json($json);
     }
     else
     {
@@ -300,57 +306,28 @@ sub send_response()
         username => $user,
         serial => $serial,
         serviceName => "CAS",
-        statusMsg => $stats,
+        statusMsg => $status,
         casSessions => []
     };
 
-    $responsemsg = <<EOF;
-<$msgtype>
-   <messageType>Response</messageType>
-   <username>$user</username>
-   <serial>$serial</serial>
-   <serviceName>CAS</serviceName>
-   <statusMsg>$status</statusMsg>
-EOF
-    if (scalar(@sessiondata))
+    foreach $s (@sessiondata)
     {
-        $responsemsg .= "   <casSessions>\n";
-        foreach $s (@sessiondata)
-        {
-            ($ip,$s_date,$msg) = split(/:/,$s,3);
-            $responsemsg .= "     <casSession>\n";
-            $responsemsg .= "       <ipAddress>$ip</ipAddress>\n";
-            $responsemsg .= "       <time>".int($s_date/1000)."</time>\n";
-            $responsemsg .= "       <result>$msg</result>\n";
-            $responsemsg .= "     </casSession>\n";
-            push ($responseref->{$msgtype}->{casSessions}, {
-                ipAddress => $ip,
-                time => int($s_date/1000),
-                result => $msg
-            });
-        }
-        $responsemsg .= "   </casSessions>\n";
+        ($ip,$s_date,$msg) = split(/:/,$s,3);
+        push ($responseref->{$msgtype}->{casSessions}, {
+            ipAddress => $ip,
+            time => int($s_date/1000),
+            result => $msg
+        });
     }
-    $responsemsg .= "</$msgtype>\n";
+   
+   $responsemsg = ($json) ? encode_json($responseref) : XMLout($responseref, KeepRoot => 1, NoAttr => 1);
 
     $stomp->send({
         destination => $response_queue,
         body        => $responsemsg
         });
 
-    if ($debug)
-    {
-        print "Response Message:\n$responsemsg\n";
-        print "Dump: ",Dumper($responseref);
-        if ($json)
-        {
-            print "JSONout:",json_encode($responseref);
-        }
-        else
-        {
-            print "XMLout: \n",XMLout($responseref);
-        }
-    }
+    print "Response Message:\n$responsemsg\n" if $debug;
 }
 
 # Post to a URL and return the raw content
