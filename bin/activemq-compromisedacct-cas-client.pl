@@ -182,7 +182,7 @@ sub process_msg
     my $response_queue = $xpc->{"respond"};
 
 
-    if ($clear || ($msgtype =~ /request/i && $xpc->{"settings"}->{"clearCASsessions"} !~ /false/i))
+    if ($clear || ($msgtype =~ /request/i && $xpc->{"settings"}->{"clearCasSessions"} !~ /false/i))
     {
         ($rcCas,@sessions) = clearCASsessions($username,$casuser,$caspass);
         if ($clear)

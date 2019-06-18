@@ -11,34 +11,34 @@
 # - Call CAS to clear CAS tokens if msg->settings->clearCASsessions != false
 # - Send email to user if msg->settings->emailUser != false
 # - Send email to admins if msg->settings->emailAdmins != false
+#
+# We also collect together responses from other handlers, parse the results of the responses
+# and send a final email to Admins about the compromised account. This would also be the 
+# place to add logging, analytics, etc, if we want to track compromised accounts
 
 use lib '/opt/amaint/etc/lib';
 use Net::Stomp;
 use XML::LibXML;
 use HTTP::Request::Common qw(GET POST PUT DELETE);
 use LWP::UserAgent;
-use Canvas;
-use Tokens;
+use ICATCredentials;
 
 $debug=0;
 
-# If your ActiveMQ brokers are configured as a master/slave pair, define
-# both hosts here. This script will try the primary, then try the failover
-# host. "Yellow" == primary down, "Red" == both down
-#
-# If not running a pair, leave secondary_host set to undef
+# Fetch all config from the credentials file
 
-$primary_host = "msgbroker1.tier2.sfu.ca";
-$secondary_host = "msgbroker2.tier2.sfu.ca";
-#$secondary_host = undef;
+my $cred = new ICATCredentials('activemq.json') -> credentialForName('activemq');
+$mquser = $cred->{'mquser'};
+$mqpass = $cred->{'mqpass'};
+$primary_host = $cred->{'primary_host'};
+$secondary_host = $cred->{'secondary_host'};
 
 $port = 61613;
 
-$mquser = $Tokens::mquser;
-$mqpass = $Tokens::mqpass;
+$cred = new ICATCredentials('activemq.json') -> credentialForName('compromisedacct');
 
-$inqueue = "/queue/ICAT.amaint.toAmaintsupport";
-$responsequeue = "/queue/ICAT.response.toAmaintsupport"; # Where we pick up status responses from
+$inqueue = $cred->{'receive_queue'};
+$responsequeue = $cred->{'response_queue'}; # Where we pick up status responses from
 
 $timeout=600;		# Don't wait longer than this to receive a msg. Any longer and we drop, sleep, and reconnect. This helps us recover from Msg Broker problems too
 $maxtimeouts = 3; # Max number of times we'll wait $timeout seconds for a message before dropping the Broker connection and reconnecting
@@ -61,6 +61,7 @@ while (1) {
   $failed=0;
   eval { $stomp = Net::Stomp->new( { hostname => $primary_host, port => $port, timeout => 10 }) };
 
+  # Set up the connection
   if($@ || !($stomp->connect( { login => $mquser, passcode => $mqpass })))
   {
     # Oh oh, primary failed
@@ -91,6 +92,7 @@ while (1) {
 
   if (!$failed)
   {
+	# Connected.
     # First subscribe to messages from the queues
     $stomp->subscribe(
         {   destination             => $inqueue,
@@ -108,10 +110,12 @@ while (1) {
 
     $counter = 0;
     do {
+		# Wait for $timeout seconds for a message to show up
     	$frame = $stomp->receive_frame({ timeout => $timeout });
 
     	if (!$frame)
     	{
+			# Timeout reached and no message received.
     		# Check for old requests that need to be finished off
     		foreach $serial (keys %msg)
     		{
@@ -148,7 +152,7 @@ while (1) {
 
 }
 
-# Handle an XML Message from Amaint (or Grouper?)
+# Handle an XML Message
 # Returns non-zero result if the message was processed successfully
 
 sub process_msg
@@ -161,7 +165,7 @@ sub process_msg
     # First, generate an XPath object from the XML
     $xpc = XML::LibXML::XPathContext->new($xdom);
 
-    # See if we have a syncLogin message
+    # See if we have a compromisedLogin message
     if ($xpc->exists("/compromisedLogin"))
     {
     	$msgtype = $xpc->findvalue("/compromisedLogin/messageType");
@@ -185,6 +189,8 @@ sub process_msg
     		$emailAdmins = "true";
     		$emailAdmins = "false" if ($xpc->findvalue("/compromisedLogin/settings/emailAdmins") =~ /false/i);
     		$msg{$serial}->{settings} = "emailAdmins=$emailAdmins";
+			#
+			# TODO: Save state of %msg hash to a DB, since, if we crash at this point, state would be lost
     	}
     	elsif ($msgtype =~ /response/i) 
     	{
