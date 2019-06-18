@@ -1,26 +1,36 @@
 #!/usr/bin/perl
 #
-# Process JMS messages for Compromised Accounts
+# Process JMS messages for requests to kill CAS sessions
 # Connect to the JMS Broker at either the $primary_host or $secondary_host and wait
 # for messages. Upon receipt of a message, process it 
 #
-# This script will handle anything not handled by other downstream systems. Currently, that's:
+# Inbound message requests come via the ICAT.amaint.toCas queue. Either XML or JSON are
+# supported and the same format will be used for responses (if a response is requested)
+# Format of a request (in XML):
+#<clearCasSessions>
+#  <username>kipling</username>
+#  <serial>123456789</serial>
+#  <respond>ICAT.casAdmin</respond>
+#</clearCasSessions>
 #
-# - Call Amaint to reset password if msg->settings->resetpassword != false
-# - Call REST server to reset Zimbra settings if msg->settings->resetzimbrasettings != false
-# - Call CAS to clear CAS tokens if msg->settings->clearCASsessions != false
-# - Send email to user if msg->settings->emailUser != false
-# - Send email to admins if msg->settings->emailAdmins != false
+# The 'serial' and 'respond' attributes are optional. If left out, no response will be sent.
+# You may also send the request as type "compromisedLogin" instead of "clearCasSessions". 
+# Responses for this message type are always sent to ICAT.response.toAmaintsupport
+
 
 use lib '/opt/amaint/lib';
 use Net::Stomp;
 use XML::Simple;
+use JSON;
 use LWP;
 use URI::Escape;
 use ICATCredentials;
+use Getopt::Std;
+use Data::Dumper;
 
+getopts("v");
 
-$debug=0;
+$debug = $opt_v;
 
 # Fetch all settings from the "Credentials" file
 my $cred  = new ICATCredentials('activemq.json')->credentialForName('client');
@@ -61,88 +71,90 @@ $| = 1;
 
 while (1) {
 
-  $failed=0;
-  eval { $stomp = Net::Stomp->new( { hostname => $primary_host, port => $port, timeout => 10 }) };
+    $failed=0;
+    eval { $stomp = Net::Stomp->new( { hostname => $primary_host, port => $port, timeout => 10 }) };
 
-  if($@ || !($stomp->connect( { login => $mquser, passcode => $mqpass })))
-  {
-    # Oh oh, primary failed
-    if (defined($secondary_host))
+    if($@ || !($stomp->connect( { login => $mquser, passcode => $mqpass })))
     {
-		eval { $stomp = Net::Stomp->new( { hostname => $secondary_host, port => $port, timeout => 10 }) };
-		if ($@)
-		{
-		    $failed = 1;
-		    $error.=$@;
-		}
-		elsif(!($stomp->connect( { login => $mquser, passcode => $mqpass })))
-		{
-		    $failed=1;
-		    $error.="Master/Slave pair DOWN. Brokers at $primary_host and $secondary_host port $port unreachable!";
-		}
-		else
-		{
-		    $error.="Primary Broker at $primary_host port $port down. Slave at $secondary_host has taken over. ";
-		}
-    }
-    else
-    {
-		$failed=1;
-		$error="Broker $primary_host on port $port unreachable";
-    }
-  }
-
-  if (!$failed)
-  {
-    # First subscribe to messages from the queues
-    $stomp->subscribe(
-        {   destination             => $inqueue,
-            'ack'                   => 'client',
-            'activemq.prefetchSize' => 1
+        # Oh oh, primary failed
+        if (defined($secondary_host))
+        {
+            eval { $stomp = Net::Stomp->new( { hostname => $secondary_host, port => $port, timeout => 10 }) };
+            if ($@)
+            {
+                $failed = 1;
+                $error.=$@;
+            }
+            elsif(!($stomp->connect( { login => $mquser, passcode => $mqpass })))
+            {
+                $failed=1;
+                $error.="Master/Slave pair DOWN. Brokers at $primary_host and $secondary_host port $port unreachable!";
+            }
+            else
+            {
+                $error.="Primary Broker at $primary_host port $port down. Slave at $secondary_host has taken over. ";
+            }
         }
-    );
+        else
+        {
+            $failed=1;
+            $error="Broker $primary_host on port $port unreachable";
+        }
+    }
 
-    $counter = 0;
-    do {
-    	$frame = $stomp->receive_frame({ timeout => $timeout });
+    if (!$failed)
+    {
+        # First subscribe to messages from the queues
+        $stomp->subscribe(
+            {   destination             => $inqueue,
+                'ack'                   => 'client',
+                'activemq.prefetchSize' => 1
+            }
+        );
 
-    	if (!$frame)
-    	{
-    		$counter++;
-    		if ($counter >= $maxtimeouts)
-    		{
-		    	# Got a timeout or null body back. Fall through to sleep and try again in a bit
-		    	$error .="No message response from Broker after waiting $timeout seconds!";
-		    	$failed=2;
-		    }
-		}
-		else
-		{
-		    if (process_msg($frame->body))
-		    {
-			# message was processed successfully. Ack it
-			$stomp->ack( {frame => $frame} );
-		    }
-		}
-    } while ((!$failed) || defined($frame));
-    $stomp->disconnect;
-  }
+        $counter = 0;
+        do {
+            $frame = $stomp->receive_frame({ timeout => $timeout });
 
-  if ($failed == 2)
-  {
-      # Got more than $maxtimeouts timeouts, but that just means no activity.
-      # Sleep a few seconds and reconnect
-      sleep 3;
-      next;
-  }
+            if (!$frame)
+            {
+                $counter++;
+                if ($counter >= $maxtimeouts)
+                {
+                    # Got a timeout or null body back. Fall through to sleep and try again in a bit
+                    $error .="No message response from Broker after waiting $timeout seconds!";
+                    $failed=2;
+                }
+            }
+            else
+            {
+                $json = ($frame->content_type =~ /json/);
+                if (process_msg($frame->body))
+                {
+                    # message was processed successfully. Ack it
+                    $stomp->ack( {frame => $frame} );
+                }
+            }
+        } while ((!$failed) || defined($frame));
+        $stomp->disconnect;
+    }
 
-  # Sleep for 5 minutes and try again
-  if ($failed)
-  {
-     print STDERR "Error: $error\n. Sleeping and retrying\n";
-     $failed = 0;
-  }
-  sleep(300);
+    if ($failed == 2)
+    {
+        # Got more than $maxtimeouts timeouts, but that just means no activity.
+        # Sleep a few seconds and reconnect
+        print "No frames in $timeout seconds\n" if $debug;
+        sleep 3;
+        next;
+    }
+
+    # Sleep for 5 minutes and try again
+    if ($failed)
+    {
+        print STDERR "Error: $error\n. Sleeping and retrying\n";
+        $failed = 0;
+    }
+    sleep(300);
 
 }
 
@@ -152,8 +164,17 @@ while (1) {
 sub process_msg
 {
     $xmlbody = shift;
-    $xref = XMLin($xmlbody);
+    if ($json)
+    {
+        $xref = decode_json($xmlbody);
+    }
+    else
+    {
+        $xref = XMLin($xmlbody, KeepRoot => 1);
+    }
     my $clear=0;
+
+    print "Processing message:\n$xmlbody\n As: ",Dumper($xref),"\n" if $debug;
 
     # See if we have a syncLogin message
     if (defined($xref->{"compromisedLogin"}))
@@ -213,9 +234,9 @@ sub clearCASsessions()
 
     my $tgt = cas_rest_login($casAdminUser,$casAdminPass);
 
-    if (!defined($TGT))
+    if (!defined($tgt))
     {
-        return "CAS Error. REST login failed";
+        return "500 REST login failed";
     }
 
     # Got a basic login ticket, now get a service ticket for the activeSessions service
@@ -226,7 +247,7 @@ sub clearCASsessions()
 	if (!$res->is_success)
 	{
         print "Failed to get Service Ticket\n";
-	    return 0;
+	    return "500 Failed to get CAS Service Ticket";
 	}
 	my $casServiceTicket = $res->content;
 
@@ -234,68 +255,81 @@ sub clearCASsessions()
     $res = post_page_raw($cas_server."/activeSessions",["ticket=$casServiceTicket","id=$u:sfu"]);
     if (!$res->is_success)
 	{
-        return "CAS Error: Unable to communicate with CAS to get sessions. ";
+        return "500 ". $res->status_line;
 	}
 
     my $xmlref = XMLin($res->content);
 
+    print "CAS activeSessions data:\n",Dumper($xmlref),"\n" if $debug;
+
    # Verify the right elements are present
-    return "CAS Error: No CAS Sessions retrieved" if (!defined($xmlref->{'cas:activeSessionsSuccess'}->{'cas:session'}));
+    return "500 No CAS Sessions retrieved" if (!defined($xmlref->{'cas:activeSessionsSuccess'}));
+    return "404 No CAS Sessions" if (!defined($xmlref->{'cas:activeSessionsSuccess'}->{'cas:session'}));
 
     # Walk the results and delete all tickets except the one for this session
     my $sessions = $xmlref->{'cas:activeSessionsSuccess'}->{'cas:session'};
     $killed = 0;
     my @results;
+
+    # If there was only one session, convert to an Array with one element
+    if (ref($sessions) ne "ARRAY" )
+    {
+        $sessions = [$sessions];
+    }
+
     foreach my $s (@$sessions)
     {
         $res = $ua->delete("$cas_server/v1/tickets/".$s->{'cas:id'});
         if ($res->is_success)
         {
             $killed++;
-            push (@results,$s->{'cas:ip'} . ":" . $s->{'cas:time'});
+            push (@results,$s->{'cas:ip'} . ":" . $s->{'cas:time'} . ":SUCCESS");
         }
         else
         {
-            push (@results, $s->{'cas:ip'} . "WARNING: Couldn't kill TGT " . $s->{'cas:id'});
+            push (@results, $s->{'cas:ip'} . ":" . $s->{'cas:time'} . ":WARNING: Couldn't kill TGT " . $s->{'cas:id'});
         }
     }
 
-    return "No CAS sessions killed" if (!$killed);
+    return "200 No CAS sessions killed" if (!$killed);
 
-    return("Killed $killed CAS sessions",@results);
+    return("200 Killed $killed CAS sessions",@results);
 
 }
 
 sub send_response()
 {
     my ($response_queue,$msgtype,$user,$serial,$status,@sessiondata) = @_;
-    $responsemsg = <<EOF;
-<$msgtype>
-   <messageType>Response</messageType>
-   <username>$user</username>
-   <serial>$serial</serial>
-   <serviceName>CAS</serviceName>
-   <statusMsg>$status</statusMsg>
-EOF
-    if (scalar(@sessiondata))
+    $responseref = {};
+    $responseref->{$msgtype} = {
+        messageType => "Response",
+        username => $user,
+        serial => $serial,
+        serviceName => "CAS",
+        statusMsg => $status,
+        casSessions => []
+    };
+
+    foreach $s (@sessiondata)
     {
-        $responsemsg .= "   <casSessions>\n";
-        foreach $s (@sessiondata)
-        {
-            ($junk,$ip,$s_date) = split(/:/,$s,2);
-            $responsemsg .= "     <casSession>\n";
-            $responsemsg .= "       <ipAddress>$ip</ipAddress>\n";
-            $responsemsg .= "       <date>$s_date</date>\n";
-            $responsemsg .= "     </casSession>\n";
-        }
-        $responsemsg .= "   </casSessions>\n";
+        ($ip,$s_date,$msg) = split(/:/,$s,3);
+        push ($responseref->{$msgtype}->{casSessions}, {
+            ipAddress => $ip,
+            time => int($s_date/1000),
+            result => $msg
+        });
     }
-    $responsemsg .= "</$msgtype>\n";
+   
+   $responsemsg = ($json) ? encode_json($responseref) : XMLout($responseref, KeepRoot => 1, NoAttr => 1);
+   $content_type = ($json) ? "application/json" : "application/xml";
 
     $stomp->send({
-        destination => $response_queue,
-        body        => $responsemsg
-        });
+        destination    => $response_queue,
+        "content-type" => $content_type,
+        body           => $responsemsg
+    });
+
+    print "Response Message:\n$responsemsg\n" if $debug;
 }
 
 # Post to a URL and return the raw content
@@ -320,6 +354,7 @@ sub post_page_raw
     }
 	     
     my $res = ($follow_redirects) ? $ua->request($req) : $ua->simple_request($req);
+    print "RESULT: ",$res->status_line,"\n" if $opt_v;
 
     return $res;
 }
