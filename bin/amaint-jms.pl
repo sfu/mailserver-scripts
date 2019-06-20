@@ -29,8 +29,8 @@ $debug=0;
 #
 # If not running a pair, leave secondary_host set to undef
 
-$primary_host = "msgbroker1.tier2.sfu.ca";
-$secondary_host = "msgbroker2.tier2.sfu.ca";
+$primary_host = "msgbroker1.dc.sfu.ca";
+$secondary_host = "msgbroker2.dc.sfu.ca";
 #$secondary_host = undef;
 
 $port = 61613;
@@ -49,7 +49,7 @@ if ($hostname =~ /pobox/)
 }
 else
 {
-	$mailhost = "connect.sfu.ca";
+	$mailhost = "exchange.sfu.ca";
 }
 
 $timeout=600;		# Don't wait longer than this to receive a msg. Any longer and we drop, sleep, and reconnect. This helps us recover from Msg Broker problems too
