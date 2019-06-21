@@ -20,7 +20,7 @@ use MLCache;
 use MLRestClient;
 use MLRestMaillist;
 use ICATCredentials;
-require 'getopts.pl';
+use Getopt::Std;
 @nul = ('not null','null');
 select(STDOUT); $| = 1;         # make unbuffered
 $SIG{'INT'}  = 'EXITHANDLER';

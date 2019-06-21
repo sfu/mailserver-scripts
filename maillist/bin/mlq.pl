@@ -4,7 +4,7 @@ use Mail::Internet;
 use MIME::Base64;
 use JSON;
 use Encode qw/encode decode/;
-require 'getopts.pl';
+use Getopt::Std;
 #
 # mlq requires an absolute lib path, as it runs from /etc/smrsh
 use lib '/opt/amaint/maillist/lib';
