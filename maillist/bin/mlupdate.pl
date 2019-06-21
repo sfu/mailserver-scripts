@@ -23,7 +23,7 @@ use Paths;
 use MLUpdt;
 use MLUtils;
 use LOCK;
-require 'getopts.pl';
+use Getopt::Std;
 use vars qw($main::MLDIR $main::TOKEN $main::SERVICE $opt_h $opt_a);
 
 select(STDOUT); $| = 1;         # make unbuffered
