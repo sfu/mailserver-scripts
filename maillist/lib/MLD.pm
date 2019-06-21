@@ -450,7 +450,7 @@ sub deliverToList {
     }
 
     $MLD::commandBuf = PIPECOMMAND;
-    $MLD::commandBuf.= "-f \"owner-$list\"";
+    $MLD::commandBuf.= "-f \"owner-$list\@sfu.ca\"";
     $MLD::commandPrefixLength = length($MLD::commandBuf);
     my @recipients = orderAddresses(@members);
     if (-1 == $#recipients) {
@@ -487,7 +487,7 @@ sub deliverToList {
                         ["$list","$cleanfrom", "$id", "#mldelivery"]);
             }
             $MLD::commandBuf = PIPECOMMAND;         # start a new command
-            $MLD::commandBuf.= "-f \"owner-$list\"";
+            $MLD::commandBuf.= "-f \"owner-$list\@sfu.ca\"";
             $rcptCounter = 0;
         }
         if ($recipient =~ /^([-\w.+'&@]+)$/) {
@@ -505,7 +505,7 @@ sub deliverToList {
         $MLD::commandBuf .= " $recipient" if $recipient;   # add recipient
         $rcptCounter++;
     }
-    eval { sendToSendmail($msg) if (length($MLD::commandBuf) > length(PIPECOMMAND)+length("-f \"owner-$list\"")); };
+    eval { sendToSendmail($msg) if (length($MLD::commandBuf) > length(PIPECOMMAND)+length("-f \"owner-$list\@sfu.ca\"")); };
     if ($@) {
         syslog("err", "%s eval failed for command:%s", $main::ID, $MLD::commandBuf);
         _stderr( "${main::ID} eval failed for command:${MLD::commandBuf}" );
