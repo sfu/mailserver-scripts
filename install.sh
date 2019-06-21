@@ -10,7 +10,7 @@ export https_proxy=http://proxy.sfu.ca:8080
 export ftp_proxy=http://proxy.sfu.ca:8080
 
 # Install dependencies and whatever perl modules we can via Yum
-yum install -y gcc perl-CPAN perl-libwww-perl perl-XML-LibXML perl-XML-Simple
+yum install -y gcc perl-CPAN perl-libwww-perl perl-XML-LibXML perl-XML-Simple perl-MailTools perl-JSON perl-Sys-Syslog perl-DB_File
 
 # Precreate CPAN config
 #

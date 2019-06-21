@@ -64,7 +64,7 @@ cleanexit($aliases) if ( $aliases =~ /^err / );
 my $count = 0;
 foreach $line ( split /\n/, $aliases ) {
     ( $alias, $target ) = split /:/, $line;
-    if ( $MYHOSTNAME =~ /pobox/ || $MYHOSTNAME eq 'monsoon' ) {
+    if ( $MYHOSTNAME =~ /pobox/) {
         &process_alias( $alias, "$alias\@$MAILHOST" );
     }
     else {
