@@ -17,7 +17,7 @@ yum install -y gcc perl-CPAN perl-libwww-perl perl-XML-LibXML perl-XML-Simple pe
 mkdir -p /root/.cpan/CPAN
 
 if [ ! -e /root/.cpan/CPAN/MyConfig.pm ]; then
-    echo > /root/.cpan/CPAN/MyConfig.pm <<EOF
+    cat > /root/.cpan/CPAN/MyConfig.pm <<EOF
 
 $CPAN::Config = {
   'applypatch' => q[],
