@@ -19,7 +19,7 @@ mkdir -p /root/.cpan/CPAN
 if [ ! -e /root/.cpan/CPAN/MyConfig.pm ]; then
     cat > /root/.cpan/CPAN/MyConfig.pm <<EOF
 
-$CPAN::Config = {
+\$CPAN::Config = {
   'applypatch' => q[],
   'auto_commit' => q[0],
   'build_cache' => q[100],
