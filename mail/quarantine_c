@@ -10,6 +10,11 @@ use IO::Socket::INET;
 use Sys::Hostname;
 
 $hostname = hostname();
+$alumni = 1 if ($hostname =~ /alumni/);
+if ($hostname =~ /mailgw.alumni/ || $hostname =~ /f5esx/ || $hostname =~ /^mailgw[12]/)
+{
+	$legacy = 1;
+}
 if ($hostname =~ /^[a-z]+(\d)/)
 {
 	$node = $1;
@@ -33,39 +38,39 @@ EOF
 }
 
 
-    my (%opts);
-    $root = 0;
-    # Get options
-    getopts("adqvw2r:",\%opts);
+my (%opts);
+$root = 0;
+# Get options
+getopts("adqvw2r:",\%opts);
 
-    $root = 1 if (`id` =~ /uid=0\(root\)/);
+$root = 1 if (`id` =~ /uid=0\(root\)/);
 
 
-    if ($opts{q})
-    {
+if ($opts{q})
+{
 	$result = sendsock("queuebb");
 	print $result;
 	exit 0;
 	
-    }
-    elsif ($opts{v})
-    {
+}
+elsif ($opts{v})
+{
 	# View a quarantined message
 	$qid = $ARGV[0];
 	$result = sendsock("view $qid");
 	print $result;
 	exit 0;
-    }
-    elsif ($opts{d})
-    {
+}
+elsif ($opts{d})
+{
 	# Delete messages from quarantine matching regex
 	$regex = $ARGV[0];
 	$result = sendsock("delete $regex");
 	print $result;
 	exit 0;
-    }
-    elsif ($opts{r})
-    {
+}
+elsif ($opts{r})
+{
 	# Release a message (take it out of quarantine allowing it to be delivered)
 	$type = $opts{r};
 	if ($type !~ /^[IRS]$/)
@@ -77,15 +82,15 @@ EOF
 	$result = sendsock("release$type $qid");
 	print $result;
 	exit 0;
-    }
+}
 
 
-    if (!$root)
-    {
+if (!$root)
+{
 	goto NOTROOT;
-    }
-    elsif ($opts{w})
-    {
+}
+elsif ($opts{w})
+{
 	# Process Whitelist
 	if ($opts{a} || $opts{d})
 	{
@@ -98,7 +103,7 @@ EOF
 	# Just display the current whitelist
 	system("ssh antibody4.nfs.sfu.ca whitelist");
 	exit 0;
-    }
+}
 NOTROOT:
 	$result = sendsock("queue");
 	print $result;
@@ -113,19 +118,27 @@ sub sendsock()
 	my $count = 2;
   	if ($opts{2})
 	{
-		$myhost = 1;
+		$myhost = ($myhost < 3) ? 1 : 3;
 		$count = 1;
 	}
 	@res = ();
 
+	$domain = "sfu.ca";
+	if ($alumni) {
+		$domain = "alumni.sfu.ca";
+	}
+	elsif ($legacy) {
+		$domain = "tier2.sfu.ca";
+	}
+
 	do {
-		$sock = IO::Socket::INET->new("$hostname$myhost.tier2.sfu.ca:6090");
+		$sock = IO::Socket::INET->new("$hostname$myhost.$domain:6090");
 		$junk = <$sock>;	# wait for "ok" prompt
 		print $sock "$out\n";
 		@res2 = <$sock>;
 		push @res, @res2;
 		close $sock;
-		$count++;
+		$count++; $myhost++;
 	} while ($count < 3 );
 
 	return join("",@res);
