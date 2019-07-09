@@ -8,3 +8,6 @@ or managing queues
  - qtool.pl: sendmail-provided script for manipulating Sendmail queues
  - quarantine_d: daemon for managing the quarantine queue. Daemon runs as root
  - quarantine_c: quarantine client. Runs as any user and sends commands to the quarantine daemon for processing
+ - wrapper: su wrapper for mhonarc, used for maillist web archiving. mhonarc runs as postmast:majordom, which Sendmail can't
+   do on its own. This a compiled C binary. The source code came from a very old version of Majordomo. Find the source on
+   lcp-mailgw-test.dc.sfu.ca in /usr/local/src/majordomo
