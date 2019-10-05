@@ -228,6 +228,7 @@ if ($cmd =~ /^view ([\w\d]+)$/)
 			# For now, just print the first part of message and assume that's enough
 			# assumption that part0 of the multipart will be the text part
 			$msgbody = $parts[0]->parts(0)->bodyhandle()->as_string();
+		}
 	}
 	else
 	{
