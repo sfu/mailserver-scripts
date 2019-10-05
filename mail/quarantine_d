@@ -20,6 +20,8 @@ use lib "$FindBin::Bin/../lib";
 use IO::Socket::INET;
 use ICATCredentials;
 use MIME::Base64;
+use MIME::Parser;
+
 
 $hostname = hostname();
 
@@ -204,7 +206,7 @@ if ($cmd =~ /^view ([\w\d]+)$/)
 			$content .= "$h\n";
 			$rfcmsg .= "$h\n";
 		}
-		elsif ($inheaders && /^\s+/)
+		elsif ($inheaders && /^(\s+.*)/)
 		{
 			$content .= "$1\n";
 			$rfcmsg .= "$1\n";
@@ -213,7 +215,26 @@ if ($cmd =~ /^view ([\w\d]+)$/)
 	# Parse the message body so we're not just sending raw (potentially Base64) text
 	$rfcmsg .= "\n$msgbody";
 
-	print $content . $msgbody;
+	$parser = new MIME::Parser;
+	if ($entity = $parser->parse($rfcmsg))
+	{
+		@parts = $entity->parts();
+		if (!scalar(@parts))
+		{
+			# Nothing to do, just let it print the existing msgbody
+		}
+		else
+		{
+			# For now, just print the first part of message and assume that's enough
+			# assumption that part0 of the multipart will be the text part
+			$msgbody = $parts[0]->parts(0)->bodyhandle()->as_string();
+	}
+	else
+	{
+		$msgbody = "BODY: Unable to MIME Parse message\n";
+	}
+
+	print $content . "\n" . $msgbody;
 	exit 0;
 }
 
