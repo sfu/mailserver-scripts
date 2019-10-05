@@ -216,7 +216,7 @@ if ($cmd =~ /^view ([\w\d]+)$/)
 	$rfcmsg .= "\n$msgbody";
 
 	$parser = new MIME::Parser;
-	if ($entity = $parser->parse($rfcmsg))
+	if ($entity = $parser->parse_data($rfcmsg))
 	{
 		@parts = $entity->parts();
 		if (!scalar(@parts))
