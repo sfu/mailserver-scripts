@@ -202,6 +202,11 @@ if ($cmd =~ /^view ([\w\d]+)$/)
 			}
 
 			$content .= "$h\n";
+			$rfcmsg .= "$h\n";
+		}
+		elsif ($inheaders && /^\s+/)
+		{
+			$content .= "$1\n";
 			$rfcmsg .= "$1\n";
 		}
 	}
