@@ -19,6 +19,7 @@ use FindBin;
 use lib "$FindBin::Bin/../lib";
 use IO::Socket::INET;
 use ICATCredentials;
+use MIME::Base64;
 
 $hostname = hostname();
 
@@ -133,7 +134,81 @@ if ($cmd =~ /^view ([\w\d]+)$/)
 {
 	# View a quarantined message
 	$qid = $1;
-	system("find /var/spool/mqueue -name hf$qid -exec cat '{}' \\;; find /var/spool/mqueue -name df$qid -exec cat '{}' \\;");
+	$content = "";
+	my $loc = `find /var/spool/mqueue -name hf$qid`;
+	chomp($loc);
+	if (! -e $loc)
+	{
+		print "ERROR: Header file $loc not found\n";
+		exit 0;
+	}
+	my $header = `cat $loc`;
+	$loc =~ s/\/hf/\/df/;
+	if (! -e $loc)
+	{
+		print "ERROR: Message Body file $loc not found\n";
+		exit 0;
+	}
+	my $msgbody = `cat $loc`;
+	my $rfcmsg = "";
+	# Do some cleanup of the raw message before displaying it
+	my @headers = split(/\n/,$header);
+	my $rfcheader = "";
+	my $inheaders = 0;
+	foreach (@headers)
+	{
+		if (/^([TK])(\d+)/)
+		{
+			$content .= "TIME_$1: " . scalar(localtime($2)) . "\n";
+		}
+		elsif (/^q(.*)/)
+		{
+			$content .= "REASON: $1\n";
+		}
+		elsif (/^N(\d+)/)
+		{
+			$content .= "ATTEMPTS: $1\n";
+		}
+		elsif (/^R(.*)/)
+		{
+			$to = $1;
+			if ($to =~ /[A-Z]+:(.*)/)
+			{
+				$to = $1;
+			}
+			$content .= "RCPT: $to\n";
+		}
+		elsif (/^S(.*)/)
+		{
+			$content .= "FROM: $1\n";
+		}
+		elsif (/\$_(.*)/)
+		{
+			$content .= "CLIENT: $1\n";
+		}
+		elsif (/^H\?[A-Z]*\?(.*)/)
+		{
+			$h = $1;
+			# in headers
+			if (!$inheaders)
+			{
+				$inheaders = 1;
+				$content .= "\n";
+			}
+			if ($h =~ /^Subject: (.*)/)
+			{
+				$subj = _decode($1);
+				$h = "Subject: $subj";
+			}
+
+			$content .= "$h\n";
+			$rfcmsg .= "$1\n";
+		}
+	}
+	# Parse the message body so we're not just sending raw (potentially Base64) text
+	$rfcmsg .= "\n$msgbody";
+
+	print $content . $msgbody;
 	exit 0;
 }
 
@@ -305,7 +380,7 @@ sub printQueue()
 			    }
 			    elsif ($l =~ /Subject: (.*)/)
 			    {
-					$subject{$qid} = $1;
+					$subject{$qid} = _decode($1);
 					$qdata{subject} = $1;
 			    }
 			    elsif ($l =~ /^T(\d+)$/)
@@ -522,4 +597,19 @@ sub process_exch_cmd()
 	}
 
 	return join("",@res);
+}
+
+sub _decode()
+{
+	# See if subject needs decoding, a la =?utf-8?Q?hello?=
+	my $subj = shift;
+	if ($subj =~ /=\?[^?]+\?([QB])\?(.*)\?=$/)
+	{
+		$subj = $2;
+		if ($1 eq "B")
+		{
+			$subj = decode_base64($subj);
+		}
+	}
+	return $subj;
 }
