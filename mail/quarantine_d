@@ -228,9 +228,16 @@ if ($cmd =~ /^view ([\w\d]+)$/)
 			# For now, just print the first part of message and assume that's enough
 			# assumption that part0 of the multipart will be the text part
 			eval {
-			    $nmsgbody = $parts[0]->parts(0)->bodyhandle()->as_string();
-			    # We only get here if there were no MIME errors
-			    $msgbody = $nmsgbody;
+                            if (defined($parts[0]->parts(0)))
+                            {
+                                $nmsgbody = $parts[0]->parts(0)->bodyhandle()->as_string();
+                            }
+                            else
+                            {
+                                $nmsgbody = $parts[0]->bodyhandle()->as_string();
+                            }
+                            # We only get here if there were no MIME errors
+                            $msgbody = $nmsgbody;
 			};
 			if ($@)
 			{
