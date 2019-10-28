@@ -89,6 +89,7 @@ if (!( $peername =~ /^garibaldi3.tier2.sfu.ca/ ||
        $peername =~ /^pobox1.tier2.sfu.ca/ ||
        $peername =~ /^pobox2.tier2.sfu.ca/ ||  
        $peername =~ /^lcp-.*\.dc.sfu.ca/ ||
+       $peername =~ /^load-balancer.sfu.ca/ ||
        $peername =~ /^$hostname/ )) { 
     print "Bye $peername!\n";
     exit 0; 
