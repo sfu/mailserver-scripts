@@ -10,7 +10,7 @@ export https_proxy=http://proxy.sfu.ca:8080
 export ftp_proxy=http://proxy.sfu.ca:8080
 
 # Install dependencies and whatever perl modules we can via Yum
-yum install -y gcc perl-CPAN perl-CPAN-Meta perl-libwww-perl perl-XML-LibXML perl-XML-Simple perl-MailTools perl-JSON perl-Sys-Syslog perl-DB_File perl-LWP-Protocol-https
+yum install -y gcc perl-CPAN perl-CPAN-Meta perl-libwww-perl perl-XML-LibXML perl-XML-Simple perl-MailTools perl-JSON perl-Sys-Syslog perl-DB_File perl-LWP-Protocol-https perl-IO-Zlib
 
 # Precreate CPAN config
 #
@@ -97,4 +97,4 @@ perl -MCPAN -e 'install Net::Stomp'
 perl -MCPAN -e 'install XML::Generator'
 perl -MCPAN -e 'install Module::Build::Tiny'
 perl -MCPAN -e 'install Net::Statsd::Client'
-
+perl -MCPAN -e 'install Text::CSV::Hashify'
