@@ -11,6 +11,7 @@
 use Getopt::Std;
 use Text::CSV::Hashify;
 use Net::SMTP;
+use Time::HiRes;
 # Find our lib directory
 use lib "/opt/amaint/lib";
 use ICATCredentials;
@@ -248,6 +249,7 @@ foreach $u (@{$userlist})
 	{
 		send_message("localhost",$msg,$user);
 	}
+	Time::HiRes::sleep(0.3);
 }
 
 exit 0;
@@ -268,6 +270,7 @@ sub send_message()
         }
         $smtp->quit();
     }
+    print STDERR "sent to $recipient\n";
     return $rc;
 }
 
@@ -321,3 +324,4 @@ sub members_of_maillist()
     }
     return $memarray;
 }
+
