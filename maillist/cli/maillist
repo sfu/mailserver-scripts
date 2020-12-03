@@ -1,8 +1,10 @@
-#!/usr/local/bin/perl
+#!/bin/env perl
 use Getopt::Std;
 use FileHandle;
-#use lib "/usr/LOCAL/lib/ml/cli";
-use lib "/usr/local/mail/maillist2/cli";
+# Find the lib directory above the location of myself. Should be the same directory I'm in
+# # This isn't necessary if these libs get installed in a standard perl lib location
+use FindBin;
+use lib "$FindBin::Bin/../lib/cli";
 use MLMP1Server;
 use MLCLIUtils;
 use MLHelp;
