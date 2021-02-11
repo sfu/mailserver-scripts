@@ -39,7 +39,7 @@ my $cred  = new ICATCredentials('alumni.json')->credentialForName('aliases');
 my $TOKEN = $cred->{'token'};
 $main::SERVICEURL = $cred->{'url'};
 
-my $aldata = get("${main::SERVICEURL}/aliases?token=$TOKEN");
+my $aldata = get("${main::SERVICEURL}/alumniAliases?token=$TOKEN");
 print $aldata if $main::TEST;
 if ( $aldata =~ /^err / ) {
     cleanexit($aldata);
