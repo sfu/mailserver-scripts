@@ -3,8 +3,10 @@ package MLHelp;
 require Exporter;
 @ISA    = qw(Exporter);
 @EXPORT = qw(help);
-#use lib "/usr/LOCAL/lib/ml"; 
-use lib "/usr/local/mail/maillist2/cli";
+# Find the lib directory above the location of myself. Should be the same directory I'm in
+# # This isn't necessary if these libs get installed in a standard perl lib location
+use FindBin;
+use lib "$FindBin::Bin";
 use MLCLIUtils;
 
 use constant STARTUP_HELP => "\nWelcome to the SFU Maillist facility.

@@ -2,15 +2,14 @@ package MLMaillist;
 
 require Exporter;
 @ISA    = qw(Exporter);
-#use lib "/usr/LOCAL/lib/ml";
-use lib "/usr/local/mail/maillist2/lib";
+# Find the lib directory above the location of myself. Should be the same directory I'm in
+# # This isn't necessary if these libs get installed in a standard perl lib location
+use FindBin;
+use lib "$FindBin::Bin/..";
 use MLRestClient;
 use MLRestMaillist;
-use lib "/usr/local/mail/maillist2/cli";
 use MLMP1Server;
 use MLMaillistFormatter;
-use lib "/usr/local/mail/maillist2/bin";
-#use MLMail;
 
 @KEYS = qw(name type status owner actdate expdate newsfeed desc opt ats mod email);
 @MANAGERS = undef;

@@ -6,11 +6,12 @@ require Exporter;
 use Socket;
 use Sys::Hostname;
 use URI::Escape;
-#use lib "/usr/LOCAL/lib/ml";
-use lib "/usr/local/mail/maillist2/lib";
+# Find the lib directory above the location of myself. Should be the same directory I'm in
+# # This isn't necessary if these libs get installed in a standard perl lib location
+use FindBin;
+use lib "$FindBin::Bin/../lib";
 use MLRestClient;
 use MLRestMaillist;
-use lib "/usr/local/mail/maillist2/cli";
 use MLMaillist;
 
 
