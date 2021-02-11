@@ -276,7 +276,7 @@ sub getAlumni {
 	my $TOKEN = $cred->{'token'};
 	$SERVICEURL = $cred->{'url'};
 
-	my $aldata = get("${SERVICEURL}/aliases?token=$TOKEN");
+	my $aldata = get("${SERVICEURL}/alumniAliases?token=$TOKEN");
 	if ( $aldata =~ /^err / ) {
     		cleanexit($aldata);
 	}
