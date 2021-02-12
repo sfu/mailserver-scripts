@@ -1,0 +1,65 @@
+#!/usr/bin/perl
+#
+# This script handles bounce responses addressed to sfu_bounces+<identifier>@sfu.ca
+#
+# The identifier string is added to a db file which can be cross-references with
+# a db file used to send the original message, identifying any recipients that
+# bounced
+#
+# Currently this script makes no attempt to parse the bounce message. It saves
+# the first 16kb of the bounce message and updates the db file. That's it
+#
+# TODO: Recognize a bounce from one of our own mail servers and process that
+#  to make a final determination on whether address is valid or not.
+
+use DB_File ;
+
+# All 3 files below must be read/writable by user that sendmail runs scripts as ('mail' on Linux)
+my $BounceDBPath = '/opt/mail/bounces' ;
+my $Log = "$BounceDBPath/bounces.log";
+my $MAXLENGTH = 16384;
+
+my $tempDir = '/tmp/' ;
+
+my $currentTS = time() ;
+
+my $randNum = int( rand( 10000 ) ) ;
+
+my $tempFile = $tempDir . $currentTS . "-" . $randNum ;
+
+open ( LOG, ">>$Log" ) ;
+
+print LOG "opened log file " . scalar localtime() . "\n" ;
+
+
+my $mailx = $tempFile ;
+
+open (MAILX, ">$mailx") ;
+
+$enough = 0;
+$dir = "unclassified";
+
+while ( <> ) {
+	next if ($enough > $MAXLENGTH);
+	if ( $_ =~ /^To:\s+.*?<?sfu_bounces\+[a-zA-Z0-9-]+\@sfu.ca/ ) {
+		my $alias = $_ ;
+		$alias =~ /^To:\s+.*?<?sfu_bounces\+([a-zA-Z0-9-]+)\@sfu\.ca/ ;
+		$uuid = $2 ;
+		openBounces();
+		$bounces{$uuid} = time();
+		$dir = "tracked";
+		print LOG "recorded bounce for $uuid\n";
+		print MAILX $alias;
+	} else {
+		print MAILX $_ ;
+		$enough += length($_);
+	}
+}
+close (MAILX) ;
+system("mv /tmp/$mailx $BounceDBPath/$dir/$uuid.msg");
+untie %bounces ;
+close ( LOG ) ;
+
+sub openBounces() {
+	tie %bounces,"DB_File","$BounceDBPath/bounces.db",O_CREAT|O_RDWR,0644,$DB_HASH ;
+}

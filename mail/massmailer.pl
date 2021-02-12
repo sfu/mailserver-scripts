@@ -12,6 +12,7 @@ use Getopt::Std;
 use Text::CSV::Hashify;
 use Net::SMTP;
 use Time::HiRes;
+use DB_File;
 # Find our lib directory
 use lib "/opt/amaint/lib";
 use ICATCredentials;
@@ -36,10 +37,12 @@ sub usage()
 	print "    -t templatefile   Specify the template file to merge with. This option is mandatory\n";
 	print "    -f from\@domain   Email address to use in the From field. If not specified, the one in the Template file is used.\n";
 	print "    -r 				 Preserve the Reply-To header from the template file (default is to ignore it)\n";
+	print "    -b                Enable bounce tracking. Envelope From will be set to sfu_bounces+UUID\@sfu.ca. /usr/local/mail/bouncetracker.db\n";
+	print "                      Will contain a map of UUID to recipient\n";
 	exit 1;
 }
 
-getopts('c:df:m:t:r') or usage();
+getopts('bc:df:m:t:r') or usage();
 
 usage() if ((!$opt_c && !$opt_m) || !$opt_t || ($opt_c && $opt_m));
 if(! -f $opt_t) 
@@ -51,6 +54,16 @@ if ($opt_c && (! -f $opt_c))
 {
 	print "File not found: $opt_c\n";
 	usage();
+}
+
+if ($opt_b)
+{
+	$test = `uuid`;
+	if (!defined($test) || $test eq "")
+	{
+		print "Bounce tracking requires 'uuid' command\n";
+		exit 1;
+	}
 }
 
 if ($opt_m)
@@ -207,6 +220,12 @@ print "Template: $template" if ($opt_d);
 
 # Main delivery loop
 
+if ($opt_b && !$opt_d)
+{
+	tie( %BOUNCE, "DB_File","/usr/local/mail/bouncetracker.db", O_CREAT|O_RDWR,0644,$DB_HASH )
+  	  || die("Can't open bouncetracker map /usr/local/mail/bouncetracker.db. Can't continue!");
+}
+
 foreach $u (@{$userlist})
 {
 	if ($opt_m)
@@ -236,8 +255,20 @@ foreach $u (@{$userlist})
 		foreach $k (keys %{$u})
 		{
 			next if ($k eq 'email');
-			$val = $u->{$k};
-			$msg =~ s/%%$k%%/$val/g;
+			if ($k eq 'bulletlist')
+			{
+				# Special processing - expand CSV value into bullet list
+				$bullets = $u->{$k};
+				@ul = split(/,/,$bullets);
+				my $text = join("\n   * ",@ul) . "\n";
+				my $html = "";
+				foreach (@ul) { $html .= "<li>$_</li>\n"; }
+				$msg =~ s/%%bulletlist%%/$text/g;
+				$msg =~ s/%%bulletlisthtml%%/$html/g;
+			} else {
+				$val = $u->{$k};
+				$msg =~ s/%%$k%%/$val/g;
+			}
 		}
 	}
 
@@ -252,6 +283,8 @@ foreach $u (@{$userlist})
 	Time::HiRes::sleep(0.3);
 }
 
+untie %BOUNCE if $opt_b;
+
 exit 0;
 
 sub send_message()
@@ -260,13 +293,16 @@ sub send_message()
 
     my $smtp = Net::SMTP->new($server);
     return undef unless $smtp;
-    my $rc = $smtp->mail('amaint@sfu.ca');
+	my $uuid = `uuid` if ($opt_b);
+	my $from = ($opt_b) ? "$sfu_bounces+$uuid\@sfu.ca" : "amaint\@sfu.ca";
+    my $rc = $smtp->mail($from);
     if ($rc)
     {
         $rc = $smtp->to($recipient);
         if ($rc)
         {
             $rc = $smtp->data([$msg]);
+			$BOUNCE{$uuid} = $recipient if ($opt_b);
         }
         $smtp->quit();
     }
