@@ -228,6 +228,13 @@ if ($opt_b && !$opt_d)
 
 foreach $u (@{$userlist})
 {
+	my $uuid;
+	if ($opt_b)
+	{
+		$uuid = `uuid`;
+		chomp($uuid);
+	}
+
 	if ($opt_m)
 	{
 		$user = $u;
@@ -284,7 +291,7 @@ foreach $u (@{$userlist})
 	}
 	else
 	{
-		send_message("localhost",$msg,$user);
+		send_message("localhost",$msg,$user,$uuid);
 	}
 	Time::HiRes::sleep(0.3);
 }
@@ -295,16 +302,11 @@ exit 0;
 
 sub send_message()
 {
-    my ($server,$msg,$recipient) = @_;
+    my ($server,$msg,$recipient,$uuid) = @_;
 
     my $smtp = Net::SMTP->new($server);
     return undef unless $smtp;
-	my $uuid;
-	if ($opt_b)
-	{
-		$uuid = `uuid`;
-		chomp($uuid);
-	}
+	
 	my $from = ($opt_b) ? "sfu_bounces+$uuid\@sfu.ca" : "amaint\@sfu.ca";
     my $rc = $smtp->mail($from);
     if ($rc)
