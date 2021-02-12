@@ -272,6 +272,12 @@ foreach $u (@{$userlist})
 		}
 	}
 
+	if ($opt_b && $msg =~ /%\%tracker%%/)
+	{
+		$tracker = "<img src=\"https://mailmanager.its.sfu.ca/image.cgi?uuid=$uuid\" width=1 height=1>";
+		$msg =~ s/%%tracker%%/$tracker/;
+	}
+
 	if ($opt_d)
 	{
 		print "Message for $user:\n$msg";
