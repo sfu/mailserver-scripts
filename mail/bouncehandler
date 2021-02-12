@@ -44,7 +44,7 @@ while ( <> ) {
 	if ( $_ =~ /^To:\s+.*?<?sfu_bounces\+[a-zA-Z0-9-]+\@sfu.ca/ ) {
 		my $alias = $_ ;
 		$alias =~ /^To:\s+.*?<?sfu_bounces\+([a-zA-Z0-9-]+)\@sfu\.ca/ ;
-		$uuid = $2 ;
+		$uuid = $1 ;
 		openBounces();
 		$bounces{$uuid} = time();
 		$dir = "tracked";
@@ -56,7 +56,7 @@ while ( <> ) {
 	}
 }
 close (MAILX) ;
-system("mv /tmp/$mailx $BounceDBPath/$dir/$uuid.msg");
+system("mv $mailx $BounceDBPath/$dir/$uuid.msg");
 untie %bounces ;
 close ( LOG ) ;
 
