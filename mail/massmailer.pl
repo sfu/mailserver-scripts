@@ -293,8 +293,13 @@ sub send_message()
 
     my $smtp = Net::SMTP->new($server);
     return undef unless $smtp;
-	my $uuid = `uuid` if ($opt_b);
-	my $from = ($opt_b) ? "$sfu_bounces+$uuid\@sfu.ca" : "amaint\@sfu.ca";
+	my $uuid;
+	if ($opt_b)
+	{
+		$uuid = `uuid`;
+		chomp($uuid);
+	}
+	my $from = ($opt_b) ? "sfu_bounces+$uuid\@sfu.ca" : "amaint\@sfu.ca";
     my $rc = $smtp->mail($from);
     if ($rc)
     {
