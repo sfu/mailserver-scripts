@@ -224,16 +224,15 @@ if ($opt_b && !$opt_d)
 {
 	tie( %BOUNCE, "DB_File","/usr/local/mail/bouncetracker.db", O_CREAT|O_RDWR,0644,$DB_HASH )
   	  || die("Can't open bouncetracker map /usr/local/mail/bouncetracker.db. Can't continue!");
+	foreach my $k (keys %BOUNCE)
+	{
+		$DELIVERED{$BOUNCE{$k}} = $k;
+	}
 }
 
 foreach $u (@{$userlist})
 {
 	my $uuid;
-	if ($opt_b)
-	{
-		$uuid = `uuid`;
-		chomp($uuid);
-	}
 
 	if ($opt_m)
 	{
@@ -249,6 +248,17 @@ foreach $u (@{$userlist})
 	}
 	$unscopeduser = $user;
 	$unscopeduser =~ s/\@.*//;
+
+	if ($opt_b)
+	{
+		$uuid = `uuid`;
+		chomp($uuid);
+		if ($DELIVERED{$user})
+		{
+			print STDERR "Skipping $user. Already delivered\n";
+			next;
+		}
+	}
 
 	my $msg = $template;
 	$msg =~ s/%%email%%/$user/g;
@@ -292,8 +302,9 @@ foreach $u (@{$userlist})
 	else
 	{
 		send_message("localhost",$msg,$user,$uuid);
+		$DELIVERED{$user} = $uuid;
+		Time::HiRes::sleep(0.3);
 	}
-	Time::HiRes::sleep(0.3);
 }
 
 untie %BOUNCE if $opt_b;
