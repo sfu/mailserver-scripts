@@ -618,7 +618,8 @@ sub load_files()
 	$loc = shift;
 	return if (! -r $loc);
 	open(IN,$loc) or return;
-	$json_data = <IN>;
+	$json_data = join('',<IN>);
+	close IN;
 	$files = from_json($json_data);
 	return;
 }
