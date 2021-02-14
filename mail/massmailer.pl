@@ -124,6 +124,7 @@ elsif ($opt_c)
     } );
 	# Name of this mailout campaign
 	$campaign = $opt_c;
+	$campaign =~ s/.*\///;
 
     $userlist = $csvobj->all; # Returns a ref to an array of hashes, one hash per CSV row
     # Determine the right column for the username
