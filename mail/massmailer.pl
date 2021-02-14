@@ -228,7 +228,7 @@ if ($opt_b && !$opt_d)
 {
 	tie( %BOUNCE, "DB_File","/usr/local/mail/bouncetracker.db", O_CREAT|O_RDWR,0644,$DB_HASH )
   	  || die("Can't open bouncetracker map /usr/local/mail/bouncetracker.db. Can't continue!");
-	tie (%FAILURES, "DB_FILE", "/usr/local/mail/bounces/bounces.db",O_CREAT|O_RDWR,0644,$DB_HASH );
+	tie (%FAILURES, "DB_File", "/usr/local/mail/bounces/bounces.db",O_CREAT|O_RDWR,0644,$DB_HASH );
 	foreach my $k (keys %BOUNCE)
 	{
 		$DELIVERED{$campaign .":". $BOUNCE{$k}} = $k;
