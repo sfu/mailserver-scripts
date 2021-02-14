@@ -350,7 +350,6 @@ sub send_message()
 		}
         $smtp->quit();
     }
-    print STDERR "sent to $recipient\n";
     return $rc;
 }
 
