@@ -95,6 +95,8 @@ if ($opt_m)
 	{
 		$members = members_of_maillist($opt_m);
 	}
+	# Name of this mailout campaign
+	$campaign = $opt_m;
 
 	foreach $u (@$excludes)
 	{
@@ -120,6 +122,8 @@ elsif ($opt_c)
         file        => $opt_c,
         format      => 'aoh', # array of hashes, as we don't know what the primary key is
     } );
+	# Name of this mailout campaign
+	$campaign = $opt_c;
 
     $userlist = $csvobj->all; # Returns a ref to an array of hashes, one hash per CSV row
     # Determine the right column for the username
@@ -224,9 +228,10 @@ if ($opt_b && !$opt_d)
 {
 	tie( %BOUNCE, "DB_File","/usr/local/mail/bouncetracker.db", O_CREAT|O_RDWR,0644,$DB_HASH )
   	  || die("Can't open bouncetracker map /usr/local/mail/bouncetracker.db. Can't continue!");
+	tie (%FAILURES, "DB_FILE", "/usr/local/mail/bounces/bounces.db",O_CREAT|O_RDWR,0644,$DB_HASH );
 	foreach my $k (keys %BOUNCE)
 	{
-		$DELIVERED{$BOUNCE{$k}} = $k;
+		$DELIVERED{$campaign .":". $BOUNCE{$k}} = $k;
 	}
 }
 
@@ -253,7 +258,7 @@ foreach $u (@{$userlist})
 	{
 		$uuid = `uuid`;
 		chomp($uuid);
-		if ($DELIVERED{$user})
+		if ($DELIVERED{"$campaign:$user"})
 		{
 			print STDERR "Skipping $user. Already delivered\n";
 			next;
@@ -302,12 +307,16 @@ foreach $u (@{$userlist})
 	else
 	{
 		send_message("localhost",$msg,$user,$uuid);
-		$DELIVERED{$user} = $uuid;
+		$DELIVERED{"$campaign:$user"} = $uuid;
 		Time::HiRes::sleep(0.3);
 	}
 }
 
-untie %BOUNCE if $opt_b;
+if ($opt_b)
+{
+	untie %BOUNCE;
+	untie %FAILURES;
+}
 
 exit 0;
 
@@ -326,8 +335,19 @@ sub send_message()
         if ($rc)
         {
             $rc = $smtp->data([$msg]);
-			$BOUNCE{$uuid} = $recipient if ($opt_b);
+			$BOUNCE{"$campaign:$uuid"} = $recipient if ($opt_b);
+			print STDERR "sent to $recipient\n";
         }
+		else
+		{
+			print STDERR "Error for $recipient. Bad address?\n";
+			if ($opt_b)
+			{
+				$BOUNCE{"$campaign:$uuid"} = $recipient;
+				$FAILURES{$uuid} = time();
+			}
+
+		}
         $smtp->quit();
     }
     print STDERR "sent to $recipient\n";
