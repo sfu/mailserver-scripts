@@ -6,13 +6,22 @@
 # If using a CSV file, all fields in the CSV will be searched for a corresponding variable
 # in the template file and the corresponding value for each user substituted into the template
 # Variables are specified in the Template file using the format "%%variable%%" - e.g:
-#  To: %%user%% 
+#  To: %%user%%
+#
+# Revisions:
+#  2021/02/12 - Added special column name "bulletlist": the column value will be split on ',' and turned into a bulleted list
+#                The message template should contain "%%bulletlits%%" where the text will go and %%bulletlisthtml%% where the
+#                html will go
+#  2021/02/15 - Added special column 'jsonlist': The column value will be converted from JSON to a data structure which is
+#                expected to be a potentially nested list of bullets. Hash keys become bullet points and hash values become
+#                indented bulleted lists under the bullet point 
 
 use Getopt::Std;
 use Text::CSV::Hashify;
 use Net::SMTP;
 use Time::HiRes;
 use DB_File;
+use JSON;
 # Find our lib directory
 use lib "/opt/amaint/lib";
 use ICATCredentials;
@@ -223,6 +232,8 @@ print "Would email to ",scalar(@$userlist)," users\n\n" if ($opt_d);
 
 print "Template: $template" if ($opt_d);
 
+
+
 # Main delivery loop
 
 if ($opt_b && !$opt_d)
@@ -288,7 +299,23 @@ foreach $u (@{$userlist})
 				foreach (@ul) { $html .= "<li>$_</li>\n"; }
 				$msg =~ s/%%bulletlist%%/$text/g;
 				$msg =~ s/%%bulletlisthtml%%/$html/g;
-			} else {
+			} elsif ($k eq 'jsonlist')
+			{
+				# Special processing of a json structure into a nested bulleted list.
+				eval { 
+					$jsondata = from_json($u->{$k});
+				}
+				if ($@)
+				{
+					print STDERR "Skipping $user. Error decoding JSON data: $@\n";
+					next;
+				}
+				($text,$html) = json_to_html($jsondata);
+				$msg =~ s/%%jsonlist%%/$text/g;
+				$msg =~ s/%%jsonlisthtml%%/$html/g;
+			}
+			
+			else {
 				$val = $u->{$k};
 				$msg =~ s/%%$k%%/$val/g;
 			}
@@ -403,5 +430,44 @@ sub members_of_maillist()
         return undef;
     }
     return $memarray;
+}
+
+# Convert a data structure into a bulleted list
+# - If the data structure is a hash, it's considered to be bullet points with indented bullets underneath. 
+#    gets passed back to this function for further interpration
+# - If the data structure is an array, it's a straight array of bullet points
+sub jsonlist_to_html
+{
+	my $data = shift;
+	my $offset = shift;
+
+	my $spaces = " " x (3 * ($offset+1));
+
+	if (ref($data) eq "ARRAY")
+	{
+		$html = "<ul>\n";
+		$text = join("\n$spaces* ",@$data) . "\n";
+		foreach (@$data) { $html .= "<li>$_</li>\n"; }
+		$html .= "</ul>\n";
+	}
+	elsif (ref($data) eq "HASH")
+	{
+		$html = "<ul>\n";
+		foreach my $k (keys %$data)
+		{
+			$html .= "<li>$k\n";
+			$text .= "\n$spaces* $k";
+			my ($indentedtext,$indentedhtml) = jsonlist_to_html($data->{$k},$offset+1);
+			$text .= $indentedtext;
+			$html .= $indentedhtml . "</li>\n";
+		}
+		$html .= "</ul>\n";
+	}
+	elsif (ref($data) eq "SCALAR")
+	{
+		$html = "<ul><li>" . $$data . "</li></ul>\n";
+		$text = "\n$spaces* " . $$data;
+	}
+	return ($text,$html);
 }
 
