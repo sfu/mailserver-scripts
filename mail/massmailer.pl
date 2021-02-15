@@ -304,7 +304,7 @@ foreach $u (@{$userlist})
 				# Special processing of a json structure into a nested bulleted list.
 				eval { 
 					$jsondata = from_json($u->{$k});
-				}
+				};
 				if ($@)
 				{
 					print STDERR "Skipping $user. Error decoding JSON data: $@\n";
