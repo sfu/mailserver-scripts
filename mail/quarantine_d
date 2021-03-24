@@ -585,7 +585,7 @@ sub writeOrAppendFile()
 		foreach $k (keys %$data)
 		{
 			$content{$k} = $data->{$k};
-			print TEXT "$k		",$data->{$k},"\n" if ($hastext);
+			print TEXT "$k:		",$data->{$k},"\n" if ($hastext);
 		}
 	    untie %content;
 	    close TEXT if ($hastext);
