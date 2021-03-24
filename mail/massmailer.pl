@@ -243,7 +243,8 @@ if ($opt_b && !$opt_d)
 	tie (%FAILURES, "DB_File", "/usr/local/mail/bounces/bounces.db",O_CREAT|O_RDWR,0644,$DB_HASH );
 	foreach my $k (keys %BOUNCE)
 	{
-		$DELIVERED{$campaign .":". $BOUNCE{$k}} = $k;
+		my ($camp,$uid) = split(/:/,$k);
+		$DELIVERED{$camp .":". $BOUNCE{$k}} = $k;
 	}
 }
 
