@@ -248,6 +248,8 @@ if ($opt_b && !$opt_d)
 	}
 }
 
+$doneusers = 0;
+
 foreach $u (@{$userlist})
 {
 	my $uuid;
@@ -339,6 +341,16 @@ foreach $u (@{$userlist})
 		$DELIVERED{"$campaign:$user"} = $uuid;
 		Time::HiRes::sleep(0.3);
 	}
+        $doneusers++;
+        if (($doneusers % 10) == 0 && $opt_b)
+        {
+                # Flush DB to disk
+                untie %BOUNCE;
+                untie %FAILURES;
+                tie( %BOUNCE, "DB_File","/usr/local/mail/bouncetracker.db", O_CREAT|O_RDWR,0644,$DB_HASH )
+                || die("Can't open bouncetracker map /usr/local/mail/bouncetracker.db. Can't continue!");
+                tie (%FAILURES, "DB_File", "/usr/local/mail/bounces/bounces.db",O_CREAT|O_RDWR,0644,$DB_HASH );
+         }
 }
 
 if ($opt_b)
