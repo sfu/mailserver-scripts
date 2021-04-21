@@ -70,9 +70,9 @@ if ($hostname =~ /^pobox/)
     $mailhost = "mailhost.sfu.ca";
     $INTERNAL=0;
 }
-elsif ($hostname =~ /stage\.its\.sfu\.ca/)
+elsif ($hostname =~ /test\.dc\.sfu\.ca/)
 {
-    $mailhost = "email-stage.sfu.ca";
+    $mailhost = "extst.sfu.ca";
 }
 
 exit(0) if lockInUse( $LOCKFILE );
