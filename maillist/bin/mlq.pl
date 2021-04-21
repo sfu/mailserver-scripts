@@ -58,7 +58,7 @@ $id =~ s/^<|>$//g;
 syslog("info", "No Message-Id header in message") unless $id;
 $id = _genMsgId() unless $id;                # Message-Id not set; create one
 syslog("info", "mlq processing message id %s for $maillistname", $id);
-my $statsd = Net::Statsd::Client->new(host=>'stats.tier2.sfu.ca');
+my $statsd = Net::Statsd::Client->new(host=>'lcp-graphite-p1.dc.sfu.ca');
 $statsd->increment("maillist.mlq.receivedMsgs.$hostname");
 
 my $subject = $headers->get("Subject");
