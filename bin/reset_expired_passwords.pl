@@ -224,7 +224,7 @@ sub send_message()
 sub get_user_bio()
 {
     my $username = shift;
-    my $cmd = "curl -ksS --noproxy sfu.ca  \"https://amaint.sfu.ca/cgi-bin/WebObjects/Amaint.woa/wa/getUserBio?token=$amtoken&username=$username\"";
+    my $cmd = "curl -ksS --noproxy sfu.ca  \"https://$amainthost/cgi-bin/WebObjects/Amaint.woa/wa/getUserBio?token=$amtoken&username=$username\"";
     my $xmlbody = `$cmd`;
     my $xpc = undef;
     
