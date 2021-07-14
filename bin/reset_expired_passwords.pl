@@ -13,6 +13,7 @@ $maxage = 365;
 use IO::Socket::INET;
 use Sys::Hostname;
 use XML::LibXML;
+use Net::SMTP;
 use FindBin;
 # Find our lib directory
 use lib "$FindBin::Bin/../lib";
@@ -88,13 +89,14 @@ foreach $u (sort (@{$members}))
     $userBio = get_user_bio($u);
     if (defined($userBio))
     {
-        $lastChanged = $userBio->findvalue("/synclogin/login/lastPasswordChangeDate");
+        $lastChanged = $userBio->findvalue("/syncLogin/login/lastPasswordChangeDate");
         if ($lastChanged =~ /(\d\d\d\d)-(\d\d)-(\d\d)T/)
         {
             $lastChanged = "$1$2$3";
             if ($lastChanged > 20210425 && ($today-$lastChanged < $maxage))
             {
                 _log "  Password for $u last changed on $lastChanged. Skipping";
+                next;
             }
         }
     }
