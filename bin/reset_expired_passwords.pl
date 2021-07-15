@@ -184,9 +184,17 @@ To: $displayName <$username\@sfu.ca>
 Subject: Your SFU computing account password has been reset
 
 The password for your SFU Computing account has expired and was automatically reset. To regain access to your account, 
-you will need to use the "Forgot Password" link on the SFU CAS login page
+attempt to log in to SFU services (such as SFU Mail or goSFU) and click on the "Forgot Password" link. 
+If you need any assistance, please contact the IT Service Desk.
 
 If you have any questions about this message, please contact the SFU IT Service Desk at 778-782-8888 or itshelp\@sfu.ca
+
+Thank you,
+IT Services
+Simon Fraser University | Strand Hall 1001
+8888 University Dr., Burnaby, B.C. V5A 1S6
+www.sfu.ca/information-systems
+Twitter: \@sfu_it
 EOM
     $email = "stevehillman\@gmail.com,hillman\@sfu.ca" if ($testing);
     send_message("localhost",$msg,$email);
