@@ -203,6 +203,52 @@ sub add_expiring_users()
             }
         }
     }
+
+    my $cmd = "curl -ksS --noproxy sfu.ca  \"https://$amainthost/cgi-bin/WebObjects/Amaint.woa/wa/getExpiringPasswords?token=$amtoken&days=$maxage&employees=1&excludeMlMembers=1&size=800\"";
+    my $staffresp = `$cmd`;
+    if ($? || $staffresp =~ /^err -/)
+    {
+        _log "Amaint error: $staffresp. Skipping creation of new maillist";
+        return;
+    }
+    my @staff = split(/\n/,$staffresp);
+
+    my @nonstaff,@lwaccts,@newaccts;
+
+    $cmd = "curl -ksS --noproxy sfu.ca  \"https://$amainthost/cgi-bin/WebObjects/Amaint.woa/wa/getExpiringPasswords?token=$amtoken&days=$maxage&employees=0&excludeMlMembers=1&size=3000\"";
+    my $nonstaffresp = `$cmd`;
+    if ($? || $nonstaffresp =~ /^err -/)
+    {
+        _log "Amaint error for non-staff: $nonstaffresp.";
+    }
+    else
+    {
+        @nonstaff = split(/\n/,$nonstaffresp);
+    }
+
+    $cmd = "curl -ksS --noproxy sfu.ca  \"https://$amainthost/cgi-bin/WebObjects/Amaint.woa/wa/getExpiringPasswords?token=$amtoken&days=$maxage&lightweight=1&excludeMlMembers=1&size=3000\"";
+    my $lwresp = `$cmd`;
+    if ($? || $lwresp =~ /^err -/)
+    {
+        _log "Amaint error for lightweights: $lwresp.";
+    }
+    else
+    {
+        @lwaccts = split(/\n/,$nonstaffresp);
+    }
+
+    push(@newaccts,@staff,@nonstaff,@lwaccts);
+
+    if (scalar(@newaccts) == 0)
+    {
+        _log "No expiring passwords found. Skipping maillist creation";
+        return;
+    }
+
+    my $ml = create_maillist($expiredpwlist.$createDate,"Users whose passwords expire on $createDate");
+    
+
+    
 }
 
 sub restClient {
@@ -274,6 +320,14 @@ sub create_maillist()
         _log "ERROR: Caught error from MLRest client. Aborting";
         return undef;
     }
+
+    $res = $client->modifyMaillist($ml), {
+        owner => "hillman",
+        disableUnsubscribe => "true",
+        defaultDeliver => "false",
+        hidden => "true",
+        localDefaultAllowedToSend => "true"
+    });
     return $ml;
 }
 
