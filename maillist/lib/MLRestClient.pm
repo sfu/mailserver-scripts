@@ -35,7 +35,7 @@ sub new {
 	$self->{login} = $login;
 	$self->{passcode} = $passcode;
 	$self->{isProd} = !$isTest;
-	$self->{baseUrl} = "http://test.host/cgi-bin/WebObjects/Maillist.woa/-60666/ra/";
+    $self->{baseUrl} = "https://stage.its.sfu.ca/cgi-bin/WebObjects/Maillist.woa/ra/";
 
 	$self->{baseUrl} = "https://amaint.sfu.ca/cgi-bin/WebObjects/MLRest.woa/ra/" if $self->{isProd};
 	_stdout("baseUrl is ".$self->{baseUrl}) if $main::VERBOSE;
@@ -62,6 +62,7 @@ sub _httpGet {
     my $timeout = shift;
     my $ua = LWP::UserAgent->new;
 	$ua->timeout($timeout ? $timeout : 30);
+    $url =~ s/^http:/https:/;
 	my $response;
 	my $mldata = '';
 	my $getcounter = 0;
@@ -100,7 +101,7 @@ GET:
 sub _httpPost {
     my $url = shift;
     my $formParams = shift;
-    
+    $url =~ s/^http:/https:/;
     my $ua = LWP::UserAgent->new;
 	$ua->timeout(5);
 	my $response;
@@ -142,6 +143,9 @@ sub _httpPut {
     my $url = shift;
     my $etag = shift;
     my $contentHash = shift;
+    my $timeout = shift;
+	$ua->timeout($timeout ? $timeout : 30);
+    $url =~ s/^http:/https:/;
     
     $json = JSON->new->allow_nonref;
     my $content = $json->encode( $contentHash );
@@ -195,7 +199,7 @@ PUT:
 sub _httpDelete {
     my $url = shift;
     my $etag = shift;
-    
+    $url =~ s/^http:/https:/;   
     my $ua = LWP::UserAgent->new;
 	$ua->timeout(5);
 	my $response;
@@ -532,13 +536,15 @@ sub replaceMembers {
     my $members = shift;
     
     $memberList = _getListOfHashes($members);
-    foreach $member (@$memberList) {
-        print "member: " . $member{address};
+    if ($main::VERBOSE) {
+        foreach $member (@$memberList) {
+            print "member: " . $member->{address};
+        }
     }
     my $url = $ml->membersUri() . "?sfu_token=" . $self->{token};
     my %contentHash = ();
     $contentHash{'addresses'} = $memberList;
-    my $mldata = _httpPut($url, $ml->etag(), \%contentHash);
+    my $mldata = _httpPut($url, $ml->etag(), \%contentHash, 120);
 	return $mldata ? new MLRestMaillist($self, $mldata) : $mldata;    
 }
 
@@ -679,17 +685,17 @@ sub canonicalAddress {
 sub _getListOfHashes {
     my $members = shift;
     my @listOfHashes = ();
-    print "ref(members): " . ref($members) . "\n\n";
+    print "ref(members): " . ref($members) . "\n\n" if $main::VERBOSE;
     if (ref($members) eq "ARRAY") {
         return $members if scalar(@$members)==0;
         my @memberArray = @$members;
         my $item = $memberArray[0];
-        print "ref(item): " . ref($item) . "\n\n";
+        print "ref(item): " . ref($item) . "\n\n" if $main::VERBOSE;
         if (ref($item) eq "HASH") {return $members;}
         elsif (not ref $item) {
             # Assume it's an address
             foreach $address (@$members) {
-                print "Adding $address to list\n";
+                print "Adding $address to list\n" if $main::VERBOSE;
                 push @listOfHashes, _newHashRef($address);
             }
             return \@listOfHashes;
