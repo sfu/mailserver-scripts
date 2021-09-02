@@ -2,7 +2,7 @@
 #
 # Password expiry management.
 #
-# This script is intended to be run once a day from cron, but can be run manually
+# This script is intended to be run once a day from cron, but can be run manually.
 # When invoked, it performs three tasks:
 # - checks for the existence of a maillist named $expiredpwlist-yyyymmdd
 #   where yyyymmdd is today's date. If the list exists, the membership is retrieved
@@ -39,13 +39,16 @@ IO::Socket::SSL::set_defaults(SSL_verify_mode => SSL_VERIFY_NONE);
 use LWP::UserAgent;
 
 $amainthost = "amaint.sfu.ca";
-$LOGFILE = "/tmp/resetpasswords.log";
-$expiredpwlist = "its-expired-passwords-";
+$LOGFILE = "/tmp/process-expiring-passwords.log";
+$parentpwlist = "its-expired-passwords";
+$expiredpwlist = "$parentpwlist-";
+$alert_recip = "amaint-system-messages\@sfu.ca";
 
 sub _log;
 
 my $userBio;
 my %expiring_members;
+my $newaccts = [];
 
 $me = `whoami`;
 if ($me !~ /amaint/)
@@ -87,16 +90,20 @@ chomp $today;
 
 ### Main processing ###
 
+# $main::VERBOSE=1;
 # process_expired_passwords();
-find_maillists($expiredpwlist);
-my $newlist = create_maillist("$expiredpwlist"."20210930","This is a test");
-print Dumper($newlist);
-
+_log "Starting up";
+get_expiring_users();
+add_expiring_users();
+notify_sponsors();
+_log "Done";
 close LOG;
 
 exit 0;
 
 ### Done ###
+
+
 # Local Subroutines below here #
 
 # Attempt to fetch the members of a maillist whose name ends with today's date.
@@ -154,26 +161,17 @@ sub process_expired_passwords()
     }
 }
 
-# Fetch all future pw expiry maillists and their users 
-sub get_expiring_users()
-{
-    # First, fetch all maillists that match the pattern
-    my $mlists = find_maillists($expiredpwlist);
-    if (defined($mlists) && scalar(@$mlists) > 0)
-    {
-        # Then fetch the members of each list and save in a hash
-        foreach my $ml (@$mlists)
-        {
-            $expiring_members{$ml->{name}} = members_of_maillist($ml->{name});
-        }
-    }
-    else
-    {
-        _log "No maillists retrieved matching pattern $expiredpwlist!";
-    }
-}
 
-# Add this week's expiring users to a new maillist, if necessary 
+# Add this week's expiring users to a new maillist, if necessary.
+# First, check the day of week. We only attempt to create a list on Tuesday, Wednesday, and Thursday morning
+# Second, check to see whether a list has already been created this week by
+# checking the names of all of the lists fetched by get_expiring_users. We only create one list a week
+# If no list exists yet:
+#  - fetch at most 800 employee accounts and
+#    -  3000 non-employee fullweight accounts and
+#    -  3000 lightweight accounts.
+#  - if the set is non-zero, create the maillist and add the users
+#  - if any of the added users were sponsored accounts, notify sponsors
 sub add_expiring_users()
 {
     my $dayOfWeek = `date +%w`;
@@ -183,13 +181,13 @@ sub add_expiring_users()
     # the script fails for some reason)
     if ($dayOfWeek < 2 || $dayOfWeek > 4)
     {
-        _log "  Too early in the week. Skipping new maillist creation";
+        _log "  Too early or late in the week. Skipping new maillist creation";
         return;
     }
 
     # Calculate the date 3 weeks from today. That's the date we'll use for our new expire maillist
     my @tempDate = localtime(time() + (86400*21));
-    my $createDate = ($tempDate[5] + 1900)*10000 + ($tempDate[4]+1)*100 + $tempDate[3];
+    $createDate = ($tempDate[5] + 1900)*10000 + ($tempDate[4]+1)*100 + $tempDate[3];
 
     # See if a maillist already exists with a date within 3 days of our target date
     foreach my $ml (keys %expiring_members)
@@ -198,11 +196,13 @@ sub add_expiring_users()
         {
             if (date_diff($1,$createDate) < 3)
             {
-                _log "  A recent expiry maillist exists: $ml. Skipping creation";
+                _log "  Target date: $createDate. A recent expiry maillist exists: $ml. Skipping creation";
                 return;
             }
         }
     }
+
+    _log "Fetching list of users to add to expiring passwords list";
 
     my $cmd = "curl -ksS --noproxy sfu.ca  \"https://$amainthost/cgi-bin/WebObjects/Amaint.woa/wa/getExpiringPasswords?token=$amtoken&days=$maxage&employees=1&excludeMlMembers=1&size=800\"";
     my $staffresp = `$cmd`;
@@ -213,7 +213,7 @@ sub add_expiring_users()
     }
     my @staff = split(/\n/,$staffresp);
 
-    my @nonstaff,@lwaccts,@newaccts;
+    my @nonstaff,@lwaccts;
 
     $cmd = "curl -ksS --noproxy sfu.ca  \"https://$amainthost/cgi-bin/WebObjects/Amaint.woa/wa/getExpiringPasswords?token=$amtoken&days=$maxage&employees=0&excludeMlMembers=1&size=3000\"";
     my $nonstaffresp = `$cmd`;
@@ -226,36 +226,248 @@ sub add_expiring_users()
         @nonstaff = split(/\n/,$nonstaffresp);
     }
 
-    $cmd = "curl -ksS --noproxy sfu.ca  \"https://$amainthost/cgi-bin/WebObjects/Amaint.woa/wa/getExpiringPasswords?token=$amtoken&days=$maxage&lightweight=1&excludeMlMembers=1&size=3000\"";
-    my $lwresp = `$cmd`;
-    if ($? || $lwresp =~ /^err -/)
-    {
-        _log "Amaint error for lightweights: $lwresp.";
-    }
-    else
-    {
-        @lwaccts = split(/\n/,$nonstaffresp);
-    }
+    # For now, skip lightweight accounts - we may just disable lw accounts
+    # that haven't changed their password since we last reset them
 
-    push(@newaccts,@staff,@nonstaff,@lwaccts);
+    #$cmd = "curl -ksS --noproxy sfu.ca  \"https://$amainthost/cgi-bin/WebObjects/Amaint.woa/wa/getExpiringPasswords?token=$amtoken&days=$maxage&lightweight=1&ExcludeMlMembers=1&size=3000\"";
+    #my $lwresp = `$cmd`;
+    #if ($? || $lwresp =~ /^err -/)
+    #{
+    #    _log "Amaint error for lightweights: $lwresp.";
+    #}
+    #else
+    #{
+    #    @lwaccts = split(/\n/,$lwresp);
+    #}
 
-    if (scalar(@newaccts) == 0)
+    push(@$newaccts,@staff,@nonstaff,@lwaccts);
+
+    if (scalar(@$newaccts) == 0)
     {
         _log "No expiring passwords found. Skipping maillist creation";
         return;
     }
 
     my $ml = create_maillist($expiredpwlist.$createDate,"Users whose passwords expire on $createDate");
-    
+    if (!defined($ml))
+    {
+        _log "Maillist creation failed!";
+        send_alert("Creation of $expiredpwlist$createDate failed! Check logs for details");
+        $newaccts = [];
+        return;
+    }
+    else
+    {
+        _log "Created new maillist $expiredpwlist$createDate";
+    }
 
+    _log "  Adding ".scalar(@$newaccts)." users to maillist";
+
+    my $res = replace_members_of_maillist($expiredpwlist.$createDate,$newaccts);
+    if (!defined($res))
+    {
+        # The member-add will almost certainly appear to fail, as it'll usually take longer than the NSX LB
+        # is willing to wait. So sleep for a bit, then grab the membership from AOBRest and see what
+        # we have
+        _log "Got a failure response from adding members. Sleeping and trying to retrieve members from MLRest";
+        sleep 240;
+        $newmembers = members_of_maillist($expiredpwlist.$createDate);
+        if (!scalar(@$newmembers))
+        {
+            _log "Failed to add members to maillist $expiredpwlist$createDate!";
+            send_alert("Adding members to $expiredpwlist$createDate failed! Check logs for details. Delete the maillist to have the script try again tonight.");
+            $newaccts = [];
+            return;
+        }
+        elsif (scalar(@$newmembers) < scalar(@$newaccts))
+        {
+            _log "Warning: Not all users were added. List has ".scalar(@$newmembers)." users instead of ".scalar(@$newaccts);
+            send_alert("Warning: Some users failed to be added to $expiredpwlist$createDate. Expected ".scalar(@$newaccts)." but got ".scalar(@$newmembers));
+            # Just track the users that got added
+            $newaccts = $newmembers;
+        }
+    }
+
+    _log "  Added ". scalar(@staff)." staff, ". scalar(@nonstaff)." non-staff, and ".scalar(@lwaccts)." lightweight accounts to new maillist.";
     
+    return if ($testing);
+
+    # Add new maillist to the parent list
+    $res = add_member_to_maillist($parentpwlist,$expiredpwlist.$createDate);
+    if (!defined($res))
+    {
+        _log "Failed to add maillist $expiredpwlist$createDate to parent list $parentpwlist";
+        send_alert("Adding $expiredpwlist$createDate to $parentpwlist failed! Check logs for details. Manually add the list to the parent list to ensure users get the Nag screen.");
+        return;
+    }
+}
+
+# Notify Sponsors
+# This function notifies all sponsors about upcoming password expiration
+# of accounts they sponsor. The notice will include all accounts they sponsor,
+# and will include notifications for both 1 week out and 3 weeks out 
+sub notify_sponsors()
+{        
+    my %sponsors,$sp;
+
+    # First, find the expiry maillist for 1 week out
+    my $oneweekml;
+    my @oneweeklist;
+    foreach my $ml (keys %expiring_members)
+    {
+        if ($ml =~ /-(\d+)$/)
+        {
+            if (date_diff($1,$createDate) == 7)
+            {
+                $oneweekml = $ml;
+                last;
+            }
+        }        
+    }
+
+    # Iterate over it and find every sponsored account
+    foreach my $acct (@{$expiring_members{$oneweekml}})
+    {
+        $sp = get_sponsor($acct);
+        if ($sp)
+        {
+            if (!defined($sponsors{$sp}))
+            {
+                $sponsors{$sp} = {
+                    oneweek => [$acct],
+                    new => []
+                };
+            }
+            else
+            {
+                push (@{$sponsors{$sp}->{oneweek}},$acct);
+            }
+        }
+    }
+
+    # if there are any new accounts added today, iterate over them to identify sponsors
+    # and add them to the existing list
+    if (scalar(@$newaccts))
+    {
+        foreach my $acct (@$newaccts)
+        {
+            $sp = get_sponsor($acct);
+            if ($sp)
+            {
+                if (!defined($sponsors{$sp}))
+                {
+                    $sponsors{$sp} = {
+                        oneweek => [],
+                        new => [$acct]
+                    };
+                }
+                else
+                {
+                    push (@{$sponsors{$sp}->{new}},$acct);
+                }
+            }
+        }
+    }
+
+    # Calculate our dates
+    my $oneweekdate,$threeweekdate;
+    if ($oneweekml =~ /-(\d\d\d\d)(\d\d)(\d\d)$/)
+    {
+        $oneweekdate = "$1-$2-$3";
+    }
+    if ($createDate =~ /-(\d\d\d\d)(\d\d)(\d\d)$/)
+    {
+        $threeweekdate = "$1-$2-$3";
+    }
+
+
+    # We have our hash of sponsors. Each key (sponsor account) contains a hash with two keys
+    #  - an array of sponsored accounts expiring in a week
+    #  - an array of sponsored accounts expiring in 3 weeks
+    # Send a single email to each sponsor with a list of all accounts and their password expiry date
+    foreach my $sp (keys %sponsors)
+    {
+        my $msg = <<EOM2;
+From: SFU IT Service Desk <itshelp\@sfu.ca>
+To: $sp\@sfu.ca
+Subject: Passwords will expire on one or more of your sponsored accounts
+
+You are receiving this message because our records indicate that you are the sponsor of one or more sponsored SFU Computing IDs
+whose passwords will expire soon.
+
+EOM2
+        if (scalar(@{$sponsors{$sp}->{oneweek}}))
+        {
+            $msg .= "Passwords for the following accounts will expire in ONE WEEK, at 1am on $oneweekdate:\n---------------\n";
+            foreach my $u (@{$sponsors{$sp}->{oneweek}})
+            {
+                $msg .= "$u\n";
+            }
+            $msg .= "\n";
+        }
+
+        if (scalar(@{$sponsors{$sp}->{new}}))
+        {
+            $msg .= "Passwords for the following accounts will expire in 3 weeks, at 1am on $threeweekdate:\n---------------\n";
+            foreach my $u (@{$sponsors{$sp}->{new}})
+            {
+                $msg .= "$u\n";
+            }
+            $msg .= "\n";
+        }
+
+        
+        $msg .= <<EOM3;
+
+To change the password for a sponsored account, someone who knows the current password can visit https://my.sfu.ca and
+login with the current account's password, click on the 'Change Password' tab, and choose a new password.
+
+If you have any questions about this message, please contact the SFU IT Service Desk at 778-782-8888 or itshelp\@sfu.ca
+
+Thank you,
+IT Services
+Simon Fraser University | Strand Hall 1001
+8888 University Dr., Burnaby, B.C. V5A 1S6
+www.sfu.ca/information-systems
+Twitter: \@sfu_it
+EOM3
+        my $email = "$sp\@sfu.ca";
+        $email = "stevehillman\@gmail.com,hillman\@sfu.ca" if ($testing);
+        send_message("127.0.0.1",$msg,$email);
+        _log "  Sent sponsor warning email to $sp for one week accts: ".join(",",@{$sponsors{$sp}->{oneweek}})." and three week accts: ".join(",",@{$sponsors{$sp}->{new}});
+    }
+}
+
+
+
+# Fetch all future pw expiry maillists and their users 
+# We use this list to notify sponsors closer to the expiry date of sponsored accounts
+sub get_expiring_users()
+{
+    # First, fetch all maillists that match the pattern
+    my $mlists = find_maillists($expiredpwlist);
+    my $count=0;
+    if (defined($mlists) && scalar(@$mlists) > 0)
+    {
+        # Then fetch the members of each list and save in a hash
+        foreach my $ml (@$mlists)
+        {
+            $expiring_members{$ml->{name}} = members_of_maillist($ml->{name});
+            $count += scalar(@{$expiring_members{$ml->{name}}});
+        }
+        _log "Retrieved ".scalar(keys %expiring_members)." maillists with a total of $count users.";
+    }
+    else
+    {
+        _log "No maillists retrieved matching pattern $expiredpwlist!";
+    }
 }
 
 sub restClient {
     if (!defined $restClient) {
-       my $cred = new ICATCredentials('maillist.json')->credentialForName('robert');
+       my $cred = new ICATCredentials('maillist.json')->credentialForName(($testing) ? 'testing' : 'robert');
        $restClient = new MLRestClient($cred->{username}, 
-                                      $cred->{password},$main::TEST);
+                                      $cred->{password},$testing);
     }
     return $restClient;
 }
@@ -307,6 +519,9 @@ sub find_maillists()
     return $mlists;
 }
 
+# Create a password expiry maillist. This function could also be used for
+# other lists, but you may want to adjust the attributes that get set on the list
+# after creation
 sub create_maillist()
 {
     $listname = shift;
@@ -321,16 +536,56 @@ sub create_maillist()
         return undef;
     }
 
-    $res = $client->modifyMaillist($ml), {
-        owner => "hillman",
+    # Set our desired attributes on the list
+    $res = $client->modifyMaillist($ml, {
+        owner => "amaint",
         disableUnsubscribe => "true",
         defaultDeliver => "false",
         hidden => "true",
-        localDefaultAllowedToSend => "true"
+        localDefaultAllowedToSend => "false"
     });
     return $ml;
 }
 
+# Replace all members of a maillist with the members in the passed in array reference.
+sub replace_members_of_maillist()
+{
+    my ($listname,$members) = @_;
+    my $result;
+    eval {
+        $client = restClient();
+        $result = $client->getMaillistByName($listname);
+        $result = $client->replaceMembers($result,$members);
+    };
+
+    if ($@) {
+        _log "ERROR: Caught error from MLRest client. Aborting. $@";
+        return undef;
+    }
+    return $result;
+
+}
+
+# Add a single member to a maillist
+sub add_member_to_maillist()
+{
+    my ($listname,$member) = @_;
+    my $result;
+    eval {
+        $client = restClient();
+        $result = $client->getMaillistByName($parentpwlist);
+        $result = $client->addMember($result,$member);
+    };
+
+    if ($@) {
+        _log "ERROR: Caught error from MLRest client. Aborting. $@";
+    }
+
+    return $result;
+}
+
+# After an account's password has been reset for not changing their password in time
+# send the end-user a notification. Send it to both their SFU and external email address.
 sub send_expiry_email()
 {
     my ($username,$bio) = @_;
@@ -350,9 +605,9 @@ sub send_expiry_email()
     $msg = <<EOM;
 From: SFU IT Service Desk <itshelp\@sfu.ca>
 To: $displayName <$username\@sfu.ca>
-Subject: Your SFU computing account password has been reset
+Subject: Your SFU computing ID password has been reset
 
-The password for your SFU Computing account has expired and was automatically reset. To regain access to your account, 
+The password for your SFU Computing ID has expired and was automatically reset. To regain access to your account, 
 attempt to log in to SFU services (such as SFU Mail or goSFU) and click on the "Forgot Password" link. 
 If you need any assistance, please contact the IT Service Desk.
 
@@ -366,16 +621,19 @@ www.sfu.ca/information-systems
 Twitter: \@sfu_it
 EOM
     $email = "stevehillman\@gmail.com,hillman\@sfu.ca" if ($testing);
-    send_message("localhost",$msg,$email);
+    send_message("127.0.0.1",$msg,$email);
 
 }
 
 sub send_sponsor_expiry_email()
 {
     my $username = shift;
-    my $cmd = "curl -ksS --noproxy sfu.ca  \"https://$amainthost/cgi-bin/WebObjects/Amaint.woa/wa/getSponsorForUser?token=$amtoken&username=$username\"";
-    my $sponsor = `$cmd`;
-    if ($sponsor ne "" && $sponsor !~ /^err/)
+    my $url = "https://$amainthost/cgi-bin/WebObjects/Amaint.woa/wa/getSponsorForUser?token=$amtoken&username=$username";
+    my $sponsor;
+    eval {
+        $sponsor = MLRestClient::_httpGet($url,1);
+    };
+    if (defined($sponsor) && $sponsor ne "" && $sponsor !~ /^err/)
     {
         my $email = "$sponsor\@sfu.ca";
         my $msg = <<EOM;
@@ -385,7 +643,7 @@ Subject: The password of sponsored account '$username' has been reset
 
 You are receiving this message because our records indicate that you are the sponsor of computing account '$username'.
 
-The password for SFU Computing account '$username' has expired and was automatically reset. If this is a personal account,
+The password for SFU Computing ID '$username' has expired and was automatically reset. If this is a personal account,
 the user of the account can attempt to log in to SFU services (such as SFU Mail or goSFU) and click on the "Forgot Password" link. 
 
 If this is a departmental role account, please contact the IT Service Desk to arrange to get the password reset
@@ -400,11 +658,11 @@ www.sfu.ca/information-systems
 Twitter: \@sfu_it
 EOM
         $email = "stevehillman\@gmail.com,hillman\@sfu.ca" if ($testing);
-        send_message("localhost",$msg,$email);
+        send_message("127.0.0.1",$msg,$email);
     }
 }
 
-sub send_message()
+sub send_message
 {
     my ($server,$msg,$recipient) = @_;
 
@@ -434,15 +692,37 @@ sub send_message()
     return $rc;
 }
 
+sub send_alert()
+{
+    my $alert = shift;
+
+    my $msg = <<EOF2;
+From: Account Maintenance <amaint\@sfu.ca>
+To: $alert_recip
+Subject: Alert from process-password-expiry script on $hostname server
+
+An error occurred while processing password expiry:
+
+$alert
+
+Logfile is at $LOGFILE on $hostname
+
+EOF2
+    send_message("127.0.0.1",$msg,$alert_recip);
+}
+
 # Fetch a user bio (ActiveMQ message) from Amaint via DirectAction call
 sub get_user_bio()
 {
     my $username = shift;
-    my $cmd = "curl -ksS --noproxy sfu.ca  \"https://$amainthost/cgi-bin/WebObjects/Amaint.woa/wa/getUserBio?token=$amtoken&username=$username\"";
-    my $xmlbody = `$cmd`;
+    my $url = "https://$amainthost/cgi-bin/WebObjects/Amaint.woa/wa/getUserBio?token=$amtoken&username=$username";
+    my $xmlbody;
+    eval {
+        $xmlbody = MLRestClient::_httpGet($url,1);
+    }; 
     my $xpc = undef;
     
-    if ($xmlbody =~ /^err/)
+    if (!defined($xmlbody) || $xmlbody =~ /^err/)
     {
         _log "ERROR fetching userBio for $username.";
     }
@@ -455,6 +735,22 @@ sub get_user_bio()
         $xpc = XML::LibXML::XPathContext->new($xdom);
     }
     return $xpc;
+}
+
+# Get the sponsor of an account, if any
+sub get_sponsor
+{
+    my $username = shift;
+    my $url = "https://$amainthost/cgi-bin/WebObjects/Amaint.woa/wa/getSponsorForUser?token=$amtoken&username=$username";
+    my $sponsor;
+    eval {
+        $sponsor = MLRestClient::_httpGet($url,1);
+    };
+    if (!defined($sponsor) && $main::HTTPCODE != 404)
+    {
+        _log "Error getting sponsor for $username";
+    }
+    return $sponsor;
 }
 
 # Calculate how many days apart two dates are. Dates are in the format YYYYMMDD
