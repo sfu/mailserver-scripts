@@ -91,11 +91,11 @@ chomp $today;
 ### Main processing ###
 
 # $main::VERBOSE=1;
-# process_expired_passwords();
 _log "Starting up";
-get_expiring_users();
-add_expiring_users();
-notify_sponsors();
+process_expired_passwords();  # process today's expiring passwords, if any
+get_expiring_users();         # Fetch members of any future expiring password lists, for the next 3 weeks
+add_expiring_users();         # Create new list and add new expiring users, if any, and if applicable (once a week)
+notify_sponsors();            # For upcoming sponsored accounts, notify their sponsors, one msg per sponsor
 _log "Done";
 close LOG;
 
@@ -169,9 +169,8 @@ sub process_expired_passwords()
 # If no list exists yet:
 #  - fetch at most 800 employee accounts and
 #    -  3000 non-employee fullweight accounts and
-#    -  3000 lightweight accounts.
+#    -  3000 lightweight accounts (skipping these for now).
 #  - if the set is non-zero, create the maillist and add the users
-#  - if any of the added users were sponsored accounts, notify sponsors
 sub add_expiring_users()
 {
     my $dayOfWeek = `date +%w`;
@@ -398,7 +397,7 @@ whose passwords will expire soon.
 EOM2
         if (scalar(@{$sponsors{$sp}->{oneweek}}))
         {
-            $msg .= "Passwords for the following accounts will expire in ONE WEEK, at 1am on $oneweekdate:\n---------------\n";
+            $msg .= "Passwords for the following accounts will expire in ONE WEEK, at 3:00am on $oneweekdate:\n---------------\n";
             foreach my $u (@{$sponsors{$sp}->{oneweek}})
             {
                 $msg .= "$u\n";
@@ -408,7 +407,7 @@ EOM2
 
         if (scalar(@{$sponsors{$sp}->{new}}))
         {
-            $msg .= "Passwords for the following accounts will expire in 3 weeks, at 1am on $threeweekdate:\n---------------\n";
+            $msg .= "Passwords for the following accounts will expire in 3 weeks, at 3:00am on $threeweekdate:\n---------------\n";
             foreach my $u (@{$sponsors{$sp}->{new}})
             {
                 $msg .= "$u\n";
