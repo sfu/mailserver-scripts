@@ -144,7 +144,6 @@ sub _httpPut {
     my $etag = shift;
     my $contentHash = shift;
     my $timeout = shift;
-	$ua->timeout($timeout ? $timeout : 30);
     $url =~ s/^http:/https:/;
     
     $json = JSON->new->allow_nonref;
@@ -152,7 +151,7 @@ sub _httpPut {
     print "PUT content: $content\n" if $main::VERBOSE;
 
     my $ua = LWP::UserAgent->new;
-	$ua->timeout(5);
+    $ua->timeout($timeout ? $timeout : 30);
 	my $response;
 	my $mldata = '';
 	my $getcounter = 0;
