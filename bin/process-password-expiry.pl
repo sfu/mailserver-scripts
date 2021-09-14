@@ -171,6 +171,11 @@ sub process_expired_passwords()
 #    -  3000 non-employee fullweight accounts and
 #    -  3000 lightweight accounts (skipping these for now).
 #  - if the set is non-zero, create the maillist and add the users
+#
+# The SQL query that Amaint uses doesn't work if we tell it to exclude people who are already on an
+# expire-password list, so we need to do the work ourselves. We collect together everyone who's
+# already on a list and stuff them into a hash. We also fetch 4 times as many users from Amaint as
+# we need, to account for people who may be on the future password expiry lists
 sub add_expiring_users()
 {
     my $dayOfWeek = `date +%w`;
@@ -189,32 +194,54 @@ sub add_expiring_users()
     $createDate = ($tempDate[5] + 1900)*10000 + ($tempDate[4]+1)*100 + $tempDate[3];
 
     # See if a maillist already exists with a date within 3 days of our target date
+    # Also save the membership of every future list in a hash
+    my %future_expiring;
     foreach my $ml (keys %expiring_members)
     {
         if ($ml =~ /-(\d+)$/)
         {
-            if (date_diff($1,$createDate) < 3)
+            my $datediff = date_diff($1,$createDate);
+            if ($datediff < 3)
             {
                 _log "  Target date: $createDate. A recent expiry maillist exists: $ml. Skipping creation";
                 return;
             }
+            if ($datediff > -1)
+            {
+                # List is today or in the future. Save its members
+                foreach my $mem (@{$expiring_members{$ml}})
+                {
+                    $future_expiring{$mem} = 1;
+                }
+            }
+            
         }
     }
 
+    my @staff,@nonstaff,@lwaccts;
+
     _log "Fetching list of users to add to expiring passwords list";
 
-    my $cmd = "curl -ksS --noproxy sfu.ca  \"https://$amainthost/cgi-bin/WebObjects/Amaint.woa/wa/getExpiringPasswords?token=$amtoken&days=$maxage&employees=1&excludeMlMembers=1&size=800\"";
+    my $cmd = "curl -ksS --noproxy sfu.ca  \"https://$amainthost/cgi-bin/WebObjects/Amaint.woa/wa/getExpiringPasswords?token=$amtoken&days=$maxage&employees=1&size=3200\"";
     my $staffresp = `$cmd`;
     if ($? || $staffresp =~ /^err -/)
     {
         _log "Amaint error: $staffresp. Skipping creation of new maillist";
         return;
     }
-    my @staff = split(/\n/,$staffresp);
+    
+    my $counter = 0;
+    foreach my $m1 (split(/\n/,$staffresp))
+    {
+        if (!defined($future_expiring{$m1}))
+        {
+            push @staff,$m1;
+            $counter++;
+            last if ($counter >= 800);
+        }
+    }
 
-    my @nonstaff,@lwaccts;
-
-    $cmd = "curl -ksS --noproxy sfu.ca  \"https://$amainthost/cgi-bin/WebObjects/Amaint.woa/wa/getExpiringPasswords?token=$amtoken&days=$maxage&employees=0&excludeMlMembers=1&size=3000\"";
+    $cmd = "curl -ksS --noproxy sfu.ca  \"https://$amainthost/cgi-bin/WebObjects/Amaint.woa/wa/getExpiringPasswords?token=$amtoken&days=$maxage&employees=0&size=12000\"";
     my $nonstaffresp = `$cmd`;
     if ($? || $nonstaffresp =~ /^err -/)
     {
@@ -222,7 +249,16 @@ sub add_expiring_users()
     }
     else
     {
-        @nonstaff = split(/\n/,$nonstaffresp);
+        $counter = 0;
+        foreach my $m2 (split(/\n/,$nonstaffresp))
+        {
+            if (!defined($future_expiring{$m2}))
+            {
+                push @nonstaff,$m2;
+                $counter++;
+                last if ($counter >= 3000);
+            }
+        }
     }
 
     # For now, skip lightweight accounts - we may just disable lw accounts
@@ -397,7 +433,7 @@ whose passwords will expire soon.
 EOM2
         if (scalar(@{$sponsors{$sp}->{oneweek}}))
         {
-            $msg .= "Passwords for the following accounts will expire in ONE WEEK, at 3:00am on $oneweekdate:\n---------------\n";
+            $msg .= "Passwords for the following accounts will expire in ONE WEEK, at 1:00am on $oneweekdate:\n---------------\n";
             foreach my $u (@{$sponsors{$sp}->{oneweek}})
             {
                 $msg .= "$u\n";
@@ -407,7 +443,7 @@ EOM2
 
         if (scalar(@{$sponsors{$sp}->{new}}))
         {
-            $msg .= "Passwords for the following accounts will expire in 3 weeks, at 3:00am on $threeweekdate:\n---------------\n";
+            $msg .= "Passwords for the following accounts will expire in 3 weeks, at 1:00am on $threeweekdate:\n---------------\n";
             foreach my $u (@{$sponsors{$sp}->{new}})
             {
                 $msg .= "$u\n";
