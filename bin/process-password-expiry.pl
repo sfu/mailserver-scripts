@@ -352,7 +352,7 @@ sub notify_sponsors()
     {
         if ($ml =~ /-(\d+)$/)
         {
-            if (date_diff($1,$createDate) == 7)
+            if (date_diff($today,$1) == 7)
             {
                 $oneweekml = $ml;
                 last;
@@ -410,7 +410,7 @@ sub notify_sponsors()
     {
         $oneweekdate = "$1-$2-$3";
     }
-    if ($createDate =~ /-(\d\d\d\d)(\d\d)(\d\d)$/)
+    if ($createDate =~ /(\d\d\d\d)(\d\d)(\d\d)$/)
     {
         $threeweekdate = "$1-$2-$3";
     }
@@ -577,7 +577,7 @@ sub create_maillist()
         disableUnsubscribe => "true",
         defaultDeliver => "false",
         hidden => "true",
-        localDefaultAllowedToSend => "false"
+        localDefaultAllowedToSend => "true"
     });
     return $ml;
 }
