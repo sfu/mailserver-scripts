@@ -222,7 +222,7 @@ sub add_expiring_users()
 
     _log "Fetching list of users to add to expiring passwords list";
 
-    my $cmd = "curl -ksS --noproxy sfu.ca  \"https://$amainthost/cgi-bin/WebObjects/Amaint.woa/wa/getExpiringPasswords?token=$amtoken&days=$maxage&employees=1&size=3200\"";
+    my $cmd = "curl -ksS --noproxy sfu.ca  \"https://$amainthost/cgi-bin/WebObjects/Amaint.woa/wa/getExpiringPasswords?token=$amtoken&days=$maxage&employees=1&size=1600\"";
     my $staffresp = `$cmd`;
     if ($? || $staffresp =~ /^err -/)
     {
@@ -237,11 +237,11 @@ sub add_expiring_users()
         {
             push @staff,$m1;
             $counter++;
-            last if ($counter >= 800);
+            last if ($counter >= 400);
         }
     }
 
-    $cmd = "curl -ksS --noproxy sfu.ca  \"https://$amainthost/cgi-bin/WebObjects/Amaint.woa/wa/getExpiringPasswords?token=$amtoken&days=$maxage&employees=0&size=12000\"";
+    $cmd = "curl -ksS --noproxy sfu.ca  \"https://$amainthost/cgi-bin/WebObjects/Amaint.woa/wa/getExpiringPasswords?token=$amtoken&days=$maxage&employees=0&size=6400\"";
     my $nonstaffresp = `$cmd`;
     if ($? || $nonstaffresp =~ /^err -/)
     {
@@ -256,7 +256,7 @@ sub add_expiring_users()
             {
                 push @nonstaff,$m2;
                 $counter++;
-                last if ($counter >= 3000);
+                last if ($counter >= 1600);
             }
         }
     }
