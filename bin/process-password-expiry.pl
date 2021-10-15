@@ -212,10 +212,10 @@ sub add_expiring_users()
     my $i = 0;
     for (my $i=0; i < scalar(@excludedateranges); $i += 2)
     {
-        if ($rangecheck >= $excludedateranges[i] || $rangecheck <= $excludedateranges[$i+1])
+        if ($rangecheck >= $excludedateranges[$i] && $rangecheck <= $excludedateranges[$i+1])
         {
             _log "  Maillist date would fall within excluded range " . 
-                $excludeddateranges[$i] . " and " . $excludeddateranges[$i+1] .". Skipping creation";
+                $excludedateranges[$i] . " and " . $excludedateranges[$i+1] .". Skipping creation";
             return;
         }
     }
