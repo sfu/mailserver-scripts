@@ -19,6 +19,18 @@
 # If a person's last password change date was fewer than this many days ago, skip doing a reset
 $maxage = 365;
 
+# Exclude certain date ranges. No expiry maillist will be created within these ranges.
+# First number is start date (mmdd), second is end date
+@excludedateranges = (
+    101,114,
+    401,515,
+    701,701,
+    801,915,
+    930,930,
+    1111,1111,
+    1201,1231
+);
+
 use IO::Socket::INET;
 use Sys::Hostname;
 use XML::LibXML;
@@ -164,8 +176,10 @@ sub process_expired_passwords()
 
 # Add this week's expiring users to a new maillist, if necessary.
 # First, check the day of week. We only attempt to create a list on Tuesday, Wednesday, and Thursday morning
-# Second, check to see whether a list has already been created this week by
+# Second, make sure the date wouldn't fall within a forbidden date range
+# Last, check to see whether a list has already been created this week by
 # checking the names of all of the lists fetched by get_expiring_users. We only create one list a week
+#
 # If no list exists yet:
 #  - fetch at most 800 employee accounts and
 #    -  3000 non-employee fullweight accounts and
@@ -192,6 +206,19 @@ sub add_expiring_users()
     # Calculate the date 3 weeks from today. That's the date we'll use for our new expire maillist
     my @tempDate = localtime(time() + (86400*21));
     $createDate = ($tempDate[5] + 1900)*10000 + ($tempDate[4]+1)*100 + $tempDate[3];
+
+    # Check to see whether the expiry date would fall within an excluded date range
+    my $rangecheck = ($tempDate[4]+1)*100 + $tempDate[3];
+    my $i = 0;
+    for (my $i=0; i < scalar(@excludedateranges); $i += 2)
+    {
+        if ($rangecheck >= $excludedateranges[$i] && $rangecheck <= $excludedateranges[$i+1])
+        {
+            _log "  Maillist date would fall within excluded range " . 
+                $excludedateranges[$i] . " and " . $excludedateranges[$i+1] .". Skipping creation";
+            return;
+        }
+    }
 
     # See if a maillist already exists with a date within 3 days of our target date
     # Also save the membership of every future list in a hash
