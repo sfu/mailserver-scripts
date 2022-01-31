@@ -29,6 +29,7 @@ $SIG{'QUIT'} = 'EXITHANDLER';
 $SIG{'PIPE'} = 'EXITHANDLER';
 $SIG{'ALRM'} = 'EXITHANDLER';
 use constant OWNERONLY => 30;
+use constant BYREQUEST => 20;
 use constant DEBUG => 0;
 @DOMAINS = ("sfu.ca",
         "sfu.edu",
@@ -110,7 +111,7 @@ if ($#subject==3 && (lc $subject[2]) eq 'confirmation') {
 	if ($cmd eq 'subscribe') {
 	   my $policy = _subscriptionPolicyForSender($info, $sender);
 	   print("policy:$policy\n") if DEBUG;
-	   if ($policy==OWNERONLY) {
+	   if ($policy==OWNERONLY || $policy == BYREQUEST) {
 	      # send reply with directions
           _sendMailFromTemplate("subNotAllowed", $sender, 'Maillist error', $LISTNAME);
 	   } else {
@@ -139,7 +140,7 @@ if ($#subject==3 && (lc $subject[2]) eq 'confirmation') {
 	   	my $policy = _subscriptionPolicyForSender($info, $sender);
 	   	if ($mlc->{'type'}!=0) {
        		_sendMailFromTemplate("help_noinfo", $sender, $subject, $LISTNAME, "$PREFIX$LISTNAME-request\@sfu.ca", "$PREFIX$LISTNAME-request\@sfu.ca");
-	   	} elsif ($policy!=OWNERONLY) {
+	   	} elsif ($policy!=OWNERONLY && $policy != BYREQUEST) {
           	_sendMailFromTemplate("help", $sender, $subject, $LISTNAME, "$PREFIX$LISTNAME-request\@sfu.ca", "$PREFIX$LISTNAME-request\@sfu.ca");
        	} elsif ($mlc->isMemberOfExpandedList($sender, \%seen)) {
           	_sendMailFromTemplate("help_no_sub", $sender, $subject, $LISTNAME, "$PREFIX$LISTNAME-request\@sfu.ca", "$PREFIX$LISTNAME-request\@sfu.ca");
