@@ -67,7 +67,13 @@ sub updateMaillistFiles {
     unless (isManualList($listname)) {
       my @members = $ml->members();
       return cleanReturn("rest client returned undef members") unless @members;
-      if ($ml->memberCount() != scalar @members) {
+      # Maillists that have a subscription policy of "BYREQUEST" are ones that require owner approval.
+      # These lists can have pending members who will show up in the memberCount, but not in the list
+      # of members (anymore), so allow for up to 15 extra pending members in that situation
+      if (($ml->memberCount() != scalar @members 
+              && $ml->localSubscriptionPolicyCodeString() != 'BYREQUEST' 
+              && $ml->externalSubscriptionPolicyCodeString() != 'BYREQUEST') 
+           || $ml->memberCount() > scalar(@members) + 15 || !scalar(@members)) {
         unlink ${main::MLDIR}."/$listname/ts";
         return cleanReturn("rest client could not fetch members for $listname");
       }
