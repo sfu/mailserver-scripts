@@ -81,7 +81,7 @@ while ( <STDIN> ) {
 		# Generate a random 8 digit number
 		do {
 		    $mailalias = int(rand(90000000)) + 10000000;
-		} while (exists(aliases{$mailalias}));
+		} while (exists aliases{$mailalias});
 		$nsseaddress = "${survey}_survey+$mailalias\@sfu.ca";
 		print ANON "$sfuid,$account,$mailalias,$nsseaddress\r\n"; 
 	}
