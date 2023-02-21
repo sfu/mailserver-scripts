@@ -97,18 +97,18 @@ if ($barracudascore) {
 } else {
 	$spamlevel = numeric_spamlevel($headers->get("X-Spam-Level"));
 }
-if ($spamlevel > $maxspamlevel) {
-	syslog("info", "Message %s to %s rejected due to spam rating %s.", $id, $maillistname, $spamlevel);
-	if ($mlinfo->bounceSpamToModerator()) {
-		syslog("info", "Bouncing message %s to %s moderator.", $id, $maillistname);
-        # get the from address
-        $fromheader = $headers->get("From") unless $fromheader;
-        my $from = ((Mail::Address->parse($fromheader))[0])->address();
-		_bounceToModerator($from,$mlinfo,$msg,"message rejected due to spam rating");
-	}
-   closelog();
-   exit EX_OK;
-}
+#if ($spamlevel > $maxspamlevel) {
+#	syslog("info", "Message %s to %s rejected due to spam rating %s.", $id, $maillistname, $spamlevel);
+#	if ($mlinfo->bounceSpamToModerator()) {
+#		syslog("info", "Bouncing message %s to %s moderator.", $id, $maillistname);
+#        # get the from address
+#        $fromheader = $headers->get("From") unless $fromheader;
+#        my $from = ((Mail::Address->parse($fromheader))[0])->address();
+#		_bounceToModerator($from,$mlinfo,$msg,"message rejected due to spam rating");
+#	}
+#   closelog();
+#   exit EX_OK;
+#}
 
 my $dir = &getMsgDirName($id);
 syslog("info", "mlq message id %s will be saved in %s", $id, $QFOLDER."/".$dir);
@@ -153,6 +153,7 @@ sub _genMsgId {
 sub numeric_spamlevel {
 	my($spamlevel_hdr) = @_;
 	chomp $spamlevel_hdr;
+	$1 = undef;
 	$spamlevel_hdr =~ /Spam-Level (S*)/;
 	my $spamlevel = $1;
  	if (defined($spamlevel))
