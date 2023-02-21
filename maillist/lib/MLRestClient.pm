@@ -30,14 +30,17 @@ sub new {
 	my $login = shift;
 	my $passcode = shift;
 	my $isTest = shift;
+	my $saveToken = shift;
 	my $self = {};
 	bless $self, $class;
 	$self->{login} = $login;
 	$self->{passcode} = $passcode;
 	$self->{isProd} = !$isTest;
-    $self->{baseUrl} = "https://stage.its.sfu.ca/cgi-bin/WebObjects/Maillist.woa/ra/";
+        $self->{baseUrl} = "https://stage.its.sfu.ca/cgi-bin/WebObjects/Maillist.woa/ra/";
+	$self->{saveToken} = ($saveToken) ? "true" : "false";
 
 	$self->{baseUrl} = "https://amaint.sfu.ca/cgi-bin/WebObjects/MLRest.woa/ra/" if $self->{isProd};
+#	$self->{baseUrl} = "https://stage.its.sfu.ca/cgi-bin/WebObjects/Maillist.woa/ra/" if $self->{isProd};
 	_stdout("baseUrl is ".$self->{baseUrl}) if $main::VERBOSE;
 	$self->login();
 	unless ($self->{token}) {
@@ -49,8 +52,15 @@ sub new {
 
 sub login {
     my $self = shift;
-    my $url = $self->{baseUrl} . "authenticationtoken/" . $self->{login} . ".json?password=" . $self->{passcode} . "&perm=false";
-    my $mldata = _httpGet($url);
+#    my $url = $self->{baseUrl} . "authenticationtoken/" . $self->{login} . ".json?password=" . $self->{passcode} . "&perm=" . $self->{saveToken};
+    my $url = $self->{baseUrl} . "authenticationtoken.json";
+    my $formData = {
+	username => $self->{login},
+	password => $self->{passcode},
+	perm     => $self->{saveToken}
+    };
+#    my $mldata = _httpGet($url);
+    my $mldata = _httpPost($url,$formData);
     $self->{token} = $mldata->{token};
     $self->{loginContext} = $mldata;
 	_stdout("token is ".$self->{token}) if $main::VERBOSE;

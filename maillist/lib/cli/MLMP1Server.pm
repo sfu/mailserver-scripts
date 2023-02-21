@@ -72,9 +72,9 @@ sub authenticate {
 	# Get a token if we want to save a new one or don't have one 
 	if ($saveToken || !$TOKEN) {
 		my $pass = &getpassfromterm;
-		$self->{SERVICE} = new MLRestClient( $main::LOGIN, $pass, $ISTEST );
+ 		$self->{SERVICE} = new MLRestClient( $main::LOGIN, $pass, $ISTEST, $saveToken );
 	} else {
-	    $TOKEN = 'MLTOKEN_'.$TOKEN;
+#	    $TOKEN = 'MLTOKEN_'.$TOKEN;
 		$self->{SERVICE} = new MLRestClient( $main::LOGIN, $TOKEN, $ISTEST );
 	}
 	if ($self->{SERVICE}) {

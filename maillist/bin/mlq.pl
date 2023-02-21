@@ -72,6 +72,12 @@ if (defined($subject) &&  $subject =~ /[[:^ascii:]]/ ) {
    $subject = encode('MIME-Q', $subject);
 }
 
+my $received = $headers->get("Received");
+my $srchost = $received;
+if ($received =~ /from (.*)\s+by\s+/) {
+   $srchost = $1;
+}
+
 my $fromheader = $headers->get("From") unless $fromheader;
 chomp $fromheader if ($fromheader);
 unless ($fromheader) {
@@ -79,7 +85,7 @@ unless ($fromheader) {
    closelog();
    exit EX_OK;
 }
-syslog("info", "Message %s to %s from %s", $id, $maillistname, $fromheader);
+syslog("info", "Message %s to %s from %s fromhost %s", $id, $maillistname, $fromheader,$srchost);
 
 my $mlinfo = new MLCache($maillistname);
 
