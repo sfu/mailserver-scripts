@@ -30,7 +30,7 @@ $HISTORY      = "$ALIASESDIR/history";
 $LOCKFILE     = "/opt/adm/amaintlocks/ml2aliases.lock";
 $MAILHOST     = "mailhost.sfu.ca";                       # for pobox and monsoon
 $MYHOSTNAME   = hostname();
-$MINCOUNT     = 114000;
+$MINCOUNT     = 60000;
 
 getopts('t') or die("Bad options");
 $main::TEST = $opt_t ? $opt_t : 0;
