@@ -5,13 +5,12 @@
 
 export PERL_MM_USE_DEFAULT=1
 export PERL_EXTUTILS_AUTOINSTALL="--defaultdeps"
-export http_proxy=http://proxy.sfu.ca:8080
-export https_proxy=http://proxy.sfu.ca:8080
-export ftp_proxy=http://proxy.sfu.ca:8080
+
+. /etc/profile.d/proxy.sh
 
 # Install dependencies and whatever perl modules we can via Yum
-yum install -y gcc perl-CPAN perl-CPAN-Meta perl-libwww-perl perl-XML-LibXML perl-XML-Simple perl-MailTools \
-           perl-JSON perl-Sys-Syslog perl-DB_File perl-LWP-Protocol-https perl-IO-Zlib uuid-devel
+dnf install -y gcc perl-CPAN perl-CPAN-Meta perl-libwww-perl perl-XML-LibXML perl-XML-Simple perl-MailTools \
+           perl-JSON perl-Sys-Syslog perl-DB_File perl-LWP-Protocol-https perl-IO-Zlib
 
 # Precreate CPAN config
 #
