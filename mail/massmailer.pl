@@ -313,7 +313,7 @@ foreach $u (@{$userlist})
 					print STDERR "Skipping $user. Error decoding JSON data: $@\n";
 					next;
 				}
-				($text,$html) = json_to_html($jsondata);
+				($text,$html) = jsonlist_to_html($jsondata,0);
 				$msg =~ s/%%jsonlist%%/$text/g;
 				$msg =~ s/%%jsonlisthtml%%/$html/g;
 			}
@@ -453,6 +453,7 @@ sub jsonlist_to_html
 {
 	my $data = shift;
 	my $offset = shift;
+	my ($text,$html);
 
 	my $spaces = " " x (3 * ($offset+1));
 
@@ -476,10 +477,10 @@ sub jsonlist_to_html
 		}
 		$html .= "</ul>\n";
 	}
-	elsif (ref($data) eq "SCALAR")
+	else
 	{
-		$html = "<ul><li>" . $$data . "</li></ul>\n";
-		$text = "\n$spaces* " . $$data;
+		$html = "<ul><li>" . $data . "</li></ul>\n";
+		$text = "\n$spaces* " . $data;
 	}
 	return ($text,$html);
 }

@@ -12,6 +12,7 @@ use lib "$FindBin::Bin/../lib";
 use Paths;
 use MLUtils;
 select(STDOUT); $| = 1;         # make unbuffered
+$main::DELIVER = 1;
 
 use constant MAXTIME => 14400; # 4 hours
 
