@@ -6,6 +6,8 @@
 export PERL_MM_USE_DEFAULT=1
 export PERL_EXTUTILS_AUTOINSTALL="--defaultdeps"
 
+umask 022
+
 . /etc/profile.d/proxy.sh
 
 # Install dependencies and whatever perl modules we can via Yum

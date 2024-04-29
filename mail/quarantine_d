@@ -74,11 +74,16 @@ $files = { accessdynamic =>
 
 # Only accept connections from authorized hosts
 $| = 1;
-$sockaddr = 'S n a4 x8';
-$peersockaddr = getpeername(STDIN);
-($family, $port, $peeraddr) = unpack($sockaddr, $peersockaddr);
-($a, $b, $c, $d) = unpack('C4', $peeraddr);
-$peer = "$a.$b.$c.$d";
+if (defined($ENV{'REMOTE_ADDR'})) {
+    $peeraddr = inet_aton($ENV{'REMOTE_ADDR'});
+} else {
+    $sockaddr = 'S n a4 x8';
+    $peersockaddr = getpeername(STDIN);
+    ($family, $port, $peeraddr) = unpack($sockaddr, $peersockaddr);
+    ($a, $b, $c, $d) = unpack('C4', $peeraddr);
+    $peer = "$a.$b.$c.$d";
+}
+
 ($peername, $aliases, $addrtype, $length, @addrs) = gethostbyaddr($peeraddr, AF_INET);
 
 if (!( $peername =~ /^garibaldi3.tier2.sfu.ca/ ||

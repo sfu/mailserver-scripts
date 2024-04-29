@@ -148,8 +148,7 @@ close LIGHTWEIGHT;
 # Process the Single-ID aliases
 
 open( SINGLEID, "<$SINGLEIDALIASES" )
-  || die "Can't open singleid alias file:${SINGLEIDALIASES
-}.\n\n";
+  || die "Can't open singleid alias file:${SINGLEIDALIASES}.\n\n";
 while (<SINGLEID>) {
     chomp;
 
