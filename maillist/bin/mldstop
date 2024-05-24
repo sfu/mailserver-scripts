@@ -1,4 +1,4 @@
 #!/bin/sh
 # TODO: Read paths from Paths.pm somehow
 /bin/kill -QUIT `/bin/cat /opt/mail/maillist2/mld.pid`
-/bin/rm /opt/mail/maillist2/mlqueue/*.lock
+/bin/rm -f /opt/mail/maillist2/mlqueue/*.lock

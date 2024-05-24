@@ -249,6 +249,25 @@ sub getlistmembers {
 							return;
 						}
 		                syslog("info", "%s %s sending to %s.", $id, $sender, $listname );
+                        if (MLMail::hasNoDomain($sender)) {
+                            # local
+                            if ($mlcache->{localSenderPolicy}) {
+                                # Local sender sending to a list with a local restricted-sender policy.
+                                # Check to see whether the message originated from Exchange, and if not, log it
+                                $tenant = $headers->get('X-MS-Exchange-CrossTenant-Id');
+                                $exchangeServer = $headers->get('X-CrossPremisesHeadersFilteredBySendConnector');
+                                if (!(($tenant && $tenant eq "04e8677e-c989-47b9-8619-d83d5a5f6c67") || ($exchangeServer && $exchangeServer =~ /sfu\.ca/))) {
+                                    my $received = $headers->get('received'); # In scalar context, this returns the first Received header
+                                    syslog("warning","EXO %s %s local user sending to restricted-sender list %s from external host %s",$id,$sender,$listname,$received)
+                                }
+                            }
+                        } else {
+                            # External sender
+                            if ($mlcache->{externalSenderPolicy}) {
+                                # Any type of external sender restrictions triggers a warning
+                                syslog("warning","EXO %s %s external user sending to restricted-external-sender list %s",$id,$sender,$listname)
+                            }
+                        }
 						last SWITCH;
 					};
 								

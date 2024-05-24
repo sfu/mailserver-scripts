@@ -5,14 +5,16 @@
 # lists, as deliveries to those are guaranteed to fail from outside Exchange
 
 use DB_File;
-use Utils;
-use LOCK;
+use Sys::Hostname;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
+use Utils;
+use LOCK;
+use Paths;
 use ICATCredentials;
 use GrouperRestClient;
 
-$EXCHANGESTEM = "resource:app:ADSFU:Exchange";
+$EXCHANGESTEM = "resource:app:exchange:groups";
 $LOCKFILE = "$LOCKDIR/builddg.lock";
 $DGALIASES = "$MAILDIR/dgaliases";
 $TS           = time;
@@ -20,6 +22,13 @@ $ALIASMAPNAME = "$ALIASESDIR/dgaliases";
 $ALIASFILE    = "$ALIASESDIR/dgaliases";
 $TMPALIASFILE = "$ALIASFILE.new.$TS";
 $MINCOUNT = 0; # Increase this when we get actual DGs
+
+$MAILHOST = "exchange.sfu.ca";
+$hostname = hostname();
+if ($hostname =~ /pobox/)
+{
+        $MAILHOST = "mailhost.sfu.ca";
+}
 
 exit(0) if lockInUse($LOCKFILE);
 acquire_lock($LOCKFILE);
