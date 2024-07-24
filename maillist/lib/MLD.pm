@@ -237,7 +237,7 @@ sub getlistmembers {
     #
 	my $allowed = $mlcache->allowedToSend( $sender );
 	SWITCH: {
-		$allowed=~/SEND/   && do {
+		($allowed=~/SEND/ || $mlcache->{status} eq "migrateddg")   && do {
 						if ($mlcache->deliverySuspended()) {
 							syslog("info", "%s %s is not allowed to send to %s - delivery is suspend. Sending rejection message.", $id, $sender, $listname );
 							sendRejectionMsg( $sender, $listname, "Delivery of mail to list is currently suspended.", $msg );

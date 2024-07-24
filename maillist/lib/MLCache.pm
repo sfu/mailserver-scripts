@@ -69,6 +69,15 @@ sub members {
 		my %members = ();
 		my $name = $self->{name};
 		my @keys = qw( type manager deliver copyonsend ); 
+		if ($self->{status} eq "migrateddg") {
+			$self->{members} = { $self->{name} => {
+						type => 0,
+						manager => 0,
+						deliver => 1,
+						copyonsend => 1
+					}};
+			return $self->{members};
+		}
 		return undef unless -e $self->{root}."/files/$name/members";
 		open( MEMBERS, $self->{root}."/files/$name/members" ) 
 			or die "Can't open ".$self->{root}."/files/$name/members: $!\n";
