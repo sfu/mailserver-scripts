@@ -46,16 +46,21 @@ unless ($aldata) {
 }
 print $aldata if $main::TEST;
 
+# Only pull in lightweight aliases that point to other SFU accounts
+# - S.Hillman - Alumni retirement
 open( ALIASESSRC, ">$TMPALIASFILE" )
   || die "Can't open alumnialiases source file: ${TMPALIASFILE}.\n\n";
-print ALIASESSRC $aldata;
+@alaliases = split(/\n/,$aldata);
+foreach $al (@alaliases) {
+    print ALIASESSRC "$al\n" if ($al =~ /sfu.ca$/ && $al !~ /alumni.sfu.ca$/);
+}
 close ALIASESSRC;
 
 &cleanexit('test run exiting') if $main::TEST;
 
 my ($dev,$inode,$mode,$nlink,$uid,$gid,$rdev,
     $size,$atime,$mtime,$ctime,$blksize,$blocks) = stat($TMPALIASFILE);
-cleanexit("$TMPALIASFILE < low water mark: $size") if $size < 2000000;
+cleanexit("$TMPALIASFILE < low water mark: $size") if $size < 2000;
 
 open( JUNK, "mv $TMPALIASFILE $ALIASFILE|" );
 close JUNK;

@@ -59,7 +59,7 @@ $SINGLEIDALIASES    = "$ALIASESDIR/singleid_aliases";
 $LIGHTWEIGHTALIASES = "$ALIASESDIR/lightweightaliases";
 $BLOCKFILE          = "$ALIASESDIR/blockfile";
 $LOCKFILE           = "$LOCKDIR/aliases.lock";
-$MINCOUNT           = 165000;
+$MINCOUNT           = 58000;
 if ($main::TEST) {
     $ALIASMAPNAME = "/tmp/aliases";
     $ALIASFILE    = "/tmp/aliases";
@@ -271,6 +271,9 @@ sub EXITHANDLER {
 }
 
 sub getAlumni {
+    # Return nothing for Alumni, as they're now disabled
+    return;
+
 	my $cred  = new ICATCredentials('alumni.json')->credentialForName('aliases');
 	my $TOKEN = $cred->{'token'};
 	$SERVICEURL = $cred->{'url'};
