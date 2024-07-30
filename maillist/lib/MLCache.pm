@@ -76,6 +76,9 @@ sub members {
 						deliver => 1,
 						copyonsend => 1
 					}};
+			# Make sure the deliveryList is cleared
+			my $baseDir = $self->{root}."/files/$name";
+			unlink "$baseDir/deliveryList" if (-e "$baseDir/deliveryList");
 			return $self->{members};
 		}
 		return undef unless -e $self->{root}."/files/$name/members";
@@ -182,7 +185,7 @@ sub deliveryList {
 					$self->{deliveryList} .= "*$address\n"
 				} elsif ($members->{$address}{type} == EXTERN) {
 					$self->{deliveryList} .= "$address\n"
-				} elsif (MLMail::validateUsername($address)) {
+				} elsif (MLMail::validateUsername($address) || $address eq $name) {
 				        $self->{deliveryList} .= "$address\n";
 				} else {
 					_stdout "validateUsername fails for $address\n" if ($main::TEST);
