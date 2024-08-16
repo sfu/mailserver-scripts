@@ -14,7 +14,6 @@ use MLCache;
 use MLMail;
 use SFULogMessage;
 use SFUAppLog qw( log );
-use Net::Statsd::Client;
 
 use vars qw($main::fromheader);
 select(STDOUT); $| = 1;         # make unbuffered
@@ -58,8 +57,6 @@ $id =~ s/^<|>$//g;
 syslog("info", "No Message-Id header in message") unless $id;
 $id = _genMsgId() unless $id;                # Message-Id not set; create one
 syslog("info", "mlq processing message id %s for $maillistname", $id);
-my $statsd = Net::Statsd::Client->new(host=>'lcp-graphite-p1.dc.sfu.ca');
-$statsd->increment("maillist.mlq.receivedMsgs.$hostname");
 
 my $subject = $headers->get("Subject");
 if (defined($subject) && (($subject =~ /^Delivery Status Notification/) || ($subject =~ /^NOTICE: mail delivery status/))) {
@@ -153,13 +150,13 @@ sub _genMsgId {
 sub numeric_spamlevel {
 	my($spamlevel_hdr) = @_;
 	chomp $spamlevel_hdr;
-	$1 = undef;
-	$spamlevel_hdr =~ /Spam-Level (S*)/;
-	my $spamlevel = $1;
- 	if (defined($spamlevel))
-	{
-		$spamlevel =~ s/^\s*//;
-		return length($spamlevel);
+    if ($spamlevel_hdr =~ /Spam-Level (S*)/) {
+        my $spamlevel = $1;
+        if (defined($spamlevel))
+        {
+                $spamlevel =~ s/^\s*//;
+                return length($spamlevel);
+        }
 	}
 	return 0;
 }
